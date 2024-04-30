@@ -892,11 +892,10 @@ fn test_rebase_with_descendants() {
     Added 0 files, modified 0 files, removed 2 files
     "###);
     insta::assert_snapshot!(get_log_output(&test_env, &repo_path), @r###"
-    ○    c: a b
-    ├─╮
+    @  d: a
+    │ ○  c: a b
+    ╭─┤
     │ ○  b: a
-    ├─╯
-    │ @  d: a
     ├─╯
     ○  a
     ◆
@@ -921,11 +920,10 @@ fn test_rebase_with_descendants() {
     Added 0 files, modified 0 files, removed 2 files
     "###);
     insta::assert_snapshot!(get_log_output(&test_env, &repo_path), @r###"
-    ○    c: a b
-    ├─╮
+    @  d: a
+    │ ○  c: a b
+    ╭─┤
     │ ○  b: a
-    ├─╯
-    │ @  d: a
     ├─╯
     ○  a
     ◆
@@ -985,7 +983,8 @@ fn test_rebase_with_child_and_descendant_bug_2600() {
     insta::assert_snapshot!(stdout, @"");
     // This should be a no-op
     insta::assert_snapshot!(stderr, @r###"
-    Skipped rebase of 1 commits that were already in place
+    Skipped rebase of 4 commits that were already in place
+    Nothing changed.
     "###);
     insta::assert_snapshot!(get_log_output(&test_env, &repo_path), @r###"
     @  c: b
@@ -1003,7 +1002,8 @@ fn test_rebase_with_child_and_descendant_bug_2600() {
     insta::assert_snapshot!(stdout, @"");
     // This should be a no-op
     insta::assert_snapshot!(stderr, @r###"
-    Skipped rebase of 1 commits that were already in place
+    Skipped rebase of 3 commits that were already in place
+    Nothing changed.
     "###);
     insta::assert_snapshot!(get_log_output(&test_env, &repo_path), @r###"
     @  c: b
@@ -1056,7 +1056,8 @@ fn test_rebase_with_child_and_descendant_bug_2600() {
     // The commits in roots(base..c), i.e. commit "a" should be rebased onto "base",
     // which is a no-op
     insta::assert_snapshot!(stderr, @r###"
-    Skipped rebase of 1 commits that were already in place
+    Skipped rebase of 3 commits that were already in place
+    Nothing changed.
     "###);
     insta::assert_snapshot!(get_log_output(&test_env, &repo_path), @r###"
     @  c: b
@@ -1093,7 +1094,8 @@ fn test_rebase_with_child_and_descendant_bug_2600() {
     insta::assert_snapshot!(stdout, @"");
     // This should be a no-op
     insta::assert_snapshot!(stderr, @r###"
-    Skipped rebase of 1 commits that were already in place
+    Skipped rebase of 5 commits that were already in place
+    Nothing changed.
     "###);
     insta::assert_snapshot!(get_log_output(&test_env, &repo_path), @r###"
     @  c: b
@@ -2322,7 +2324,8 @@ fn test_rebase_skip_emptied() {
     let (stdout, stderr) = test_env.jj_cmd_ok(&repo_path, &["rebase", "-d=b", "--skip-emptied"]);
     insta::assert_snapshot!(stdout, @"");
     insta::assert_snapshot!(stderr, @r###"
-    Rebased 3 commits
+    Rebased 2 commits
+    Abandoned 1 newly emptied commits
     Working copy now at: yostqsxw 6b74c840 (empty) also already empty
     Parent commit      : vruxwmqv 48a31526 (empty) already empty
     "###);
@@ -2370,7 +2373,8 @@ fn test_rebase_skip_if_on_destination() {
     insta::assert_snapshot!(stdout, @"");
     // Skip rebase with -b
     insta::assert_snapshot!(stderr, @r###"
-    Skipped rebase of 2 commits that were already in place
+    Skipped rebase of 6 commits that were already in place
+    Nothing changed.
     "###);
     insta::assert_snapshot!(get_long_log_output(&test_env, &repo_path), @r###"
     @  f  lylxulpl  88f778c5:  e
@@ -2391,7 +2395,8 @@ fn test_rebase_skip_if_on_destination() {
     insta::assert_snapshot!(stdout, @"");
     // Skip rebase with -s
     insta::assert_snapshot!(stderr, @r###"
-    Skipped rebase of 1 commits that were already in place
+    Skipped rebase of 4 commits that were already in place
+    Nothing changed.
     "###);
     insta::assert_snapshot!(get_long_log_output(&test_env, &repo_path), @r###"
     @  f  lylxulpl  88f778c5:  e
