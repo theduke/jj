@@ -466,8 +466,10 @@ pub struct MoveCommitsStats {
 
 /// Moves `target_commits` from their current location to a new location in the
 /// graph, given by the set of `new_parent_ids` and `new_children`.
-/// The roots of `target_commits` are rebased onto the new parents, while the
+/// Commits in `target_roots` are rebased onto the new parents, while the
 /// new children are rebased onto the heads of `target_commits`.
+/// If `target_roots` is empty, it will be computed as the roots of the
+/// connected set of target commits.
 /// This assumes that `target_commits` and `new_children` can be rewritten, and
 /// there will be no cycles in the resulting graph.
 /// `target_commits` should be in reverse topological order.
@@ -477,6 +479,7 @@ pub fn move_commits(
     new_parent_ids: &[CommitId],
     new_children: &[Commit],
     target_commits: &[Commit],
+    target_roots: &[CommitId],
     options: &RebaseOptions,
 ) -> BackendResult<MoveCommitsStats> {
     if target_commits.is_empty() {
@@ -525,12 +528,18 @@ pub fn move_commits(
         connected_target_commits_internal_parents.insert(commit.id().clone(), new_parents);
     }
 
-    // Compute the roots of `target_commits`.
-    let target_roots: HashSet<_> = connected_target_commits_internal_parents
-        .iter()
-        .filter(|(commit_id, parents)| target_commit_ids.contains(commit_id) && parents.is_empty())
-        .map(|(commit_id, _)| commit_id.clone())
-        .collect();
+    // Compute the roots of `target_commits` if not provided.
+    let target_roots: HashSet<_> = if target_roots.is_empty() {
+        connected_target_commits_internal_parents
+            .iter()
+            .filter(|(commit_id, parents)| {
+                target_commit_ids.contains(commit_id) && parents.is_empty()
+            })
+            .map(|(commit_id, _)| commit_id.clone())
+            .collect()
+    } else {
+        target_roots.iter().cloned().collect()
+    };
 
     // If a commit outside the target set has a commit in the target set as a
     // parent, then - after the transformation - it should have that commit's
