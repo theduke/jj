@@ -261,6 +261,7 @@ pub(crate) fn cmd_rebase(
                 &after_commits,
                 &before_commits,
                 &target_commits,
+                &rebase_options,
             )?;
         } else if !args.insert_after.is_empty() {
             let after_commits =
@@ -271,6 +272,7 @@ pub(crate) fn cmd_rebase(
                 &mut workspace_command,
                 &after_commits,
                 &target_commits,
+                &rebase_options,
             )?;
         } else if !args.insert_before.is_empty() {
             let before_commits =
@@ -281,6 +283,7 @@ pub(crate) fn cmd_rebase(
                 &mut workspace_command,
                 &before_commits,
                 &target_commits,
+                &rebase_options,
             )?;
         } else {
             let new_parents = workspace_command
@@ -293,6 +296,7 @@ pub(crate) fn cmd_rebase(
                 &mut workspace_command,
                 &new_parents,
                 &target_commits,
+                &rebase_options,
             )?;
         }
     } else if !args.source.is_empty() {
@@ -438,6 +442,7 @@ fn rebase_revisions(
     workspace_command: &mut WorkspaceCommandHelper,
     new_parents: &[Commit],
     target_commits: &[Commit],
+    rebase_options: &RebaseOptions,
 ) -> Result<(), CommandError> {
     if target_commits.is_empty() {
         return Ok(());
@@ -460,6 +465,7 @@ fn rebase_revisions(
         &new_parents.iter().ids().cloned().collect_vec(),
         &[],
         target_commits,
+        rebase_options,
     )
 }
 
@@ -469,6 +475,7 @@ fn rebase_revisions_after(
     workspace_command: &mut WorkspaceCommandHelper,
     after_commits: &IndexSet<Commit>,
     target_commits: &[Commit],
+    rebase_options: &RebaseOptions,
 ) -> Result<(), CommandError> {
     workspace_command.check_rewritable(target_commits.iter().ids())?;
 
@@ -497,6 +504,7 @@ fn rebase_revisions_after(
         &new_parent_ids,
         &new_children,
         target_commits,
+        rebase_options,
     )
 }
 
@@ -506,6 +514,7 @@ fn rebase_revisions_before(
     workspace_command: &mut WorkspaceCommandHelper,
     before_commits: &IndexSet<Commit>,
     target_commits: &[Commit],
+    rebase_options: &RebaseOptions,
 ) -> Result<(), CommandError> {
     workspace_command.check_rewritable(target_commits.iter().ids())?;
     let before_commit_ids = before_commits.iter().ids().cloned().collect_vec();
@@ -536,6 +545,7 @@ fn rebase_revisions_before(
         &new_parent_ids,
         &new_children,
         target_commits,
+        rebase_options,
     )
 }
 
@@ -546,6 +556,7 @@ fn rebase_revisions_after_before(
     after_commits: &IndexSet<Commit>,
     before_commits: &IndexSet<Commit>,
     target_commits: &[Commit],
+    rebase_options: &RebaseOptions,
 ) -> Result<(), CommandError> {
     workspace_command.check_rewritable(target_commits.iter().ids())?;
     let before_commit_ids = before_commits.iter().ids().cloned().collect_vec();
@@ -571,6 +582,7 @@ fn rebase_revisions_after_before(
         &new_parent_ids,
         &new_children,
         target_commits,
+        rebase_options,
     )
 }
 
@@ -582,6 +594,7 @@ fn move_commits_transaction(
     new_parent_ids: &[CommitId],
     new_children: &[Commit],
     target_commits: &[Commit],
+    rebase_options: &RebaseOptions,
 ) -> Result<(), CommandError> {
     if target_commits.is_empty() {
         return Ok(());
@@ -602,13 +615,19 @@ fn move_commits_transaction(
         num_rebased_targets,
         num_rebased_descendants,
         num_skipped_rebases,
+        num_abandoned,
     } = move_commits(
         settings,
         tx.mut_repo(),
         new_parent_ids,
         new_children,
         target_commits,
+        rebase_options,
     )?;
+    // TODO(ilyagr): Consider making it possible for descendants of the target set
+    // to become emptied, like --skip-empty. This would require writing careful
+    // tests.
+    debug_assert_eq!(num_abandoned, 0);
 
     if let Some(mut fmt) = ui.status_formatter() {
         if num_skipped_rebases > 0 {
