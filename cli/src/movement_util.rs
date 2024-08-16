@@ -121,17 +121,24 @@ impl Direction {
         start_revset: &Rc<RevsetExpression>,
         args: &MovementArgsInternal,
     ) -> Result<Rc<RevsetExpression>, CommandError> {
-        let target_revset = match (self, args.conflict) {
-            (Direction::Next, true) => start_revset
-                .children()
+        let target_revset = match (self, args.should_edit, args.conflict) {
+            (Direction::Next, true, false) => start_revset.descendants_at(args.offset),
+            (Direction::Next, true, true) => start_revset
+                .descendants_at(args.offset)
                 .descendants()
                 .filtered(RevsetFilterPredicate::HasConflict)
-                .roots()
-                .minus(working_revset),
-            (Direction::Next, false) => start_revset
-                .descendants_at(args.offset)
-                .minus(working_revset),
-            (Direction::Prev, true) =>
+                .roots(),
+            (Direction::Next, false, false) => start_revset
+                .children()
+                .minus(working_revset)
+                .descendants_at(args.offset),
+            (Direction::Next, false, true) => start_revset
+                .children()
+                .minus(working_revset)
+                .descendants()
+                .filtered(RevsetFilterPredicate::HasConflict)
+                .roots(),
+            (Direction::Prev, _, true) =>
             // If people desire to move to the root conflict, replace the `heads()` below
             // with `roots(). But let's wait for feedback.
             {
@@ -141,7 +148,7 @@ impl Direction {
                     .filtered(RevsetFilterPredicate::HasConflict)
                     .heads()
             }
-            (Direction::Prev, false) => start_revset.ancestors_at(args.offset),
+            (Direction::Prev, _, false) => start_revset.ancestors_at(args.offset),
         };
 
         Ok(target_revset)
