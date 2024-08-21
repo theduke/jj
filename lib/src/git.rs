@@ -57,7 +57,7 @@ const UNBORN_ROOT_REF_NAME: &str = "refs/jj/root";
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Hash, Debug)]
 pub enum RefName {
     LocalBranch(String),
-    RemoteBranch { branch: String, remote: String },
+    RemoteBranch { bookmark: String, remote: String },
     Tag(String),
 }
 
@@ -65,24 +65,24 @@ impl fmt::Display for RefName {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             RefName::LocalBranch(name) => write!(f, "{name}"),
-            RefName::RemoteBranch { branch, remote } => write!(f, "{branch}@{remote}"),
+            RefName::RemoteBranch { bookmark, remote } => write!(f, "{bookmark}@{remote}"),
             RefName::Tag(name) => write!(f, "{name}"),
         }
     }
 }
 
 pub fn parse_git_ref(ref_name: &str) -> Option<RefName> {
-    if let Some(branch_name) = ref_name.strip_prefix("refs/heads/") {
-        // Git CLI says 'HEAD' is not a valid branch name
-        (branch_name != "HEAD").then(|| RefName::LocalBranch(branch_name.to_string()))
-    } else if let Some(remote_and_branch) = ref_name.strip_prefix("refs/remotes/") {
-        remote_and_branch
+    if let Some(bookmark_name) = ref_name.strip_prefix("refs/heads/") {
+        // Git CLI says 'HEAD' is not a valid bookmark name
+        (bookmark_name != "HEAD").then(|| RefName::LocalBranch(bookmark_name.to_string()))
+    } else if let Some(remote_and_bookmark) = ref_name.strip_prefix("refs/remotes/") {
+        remote_and_bookmark
             .split_once('/')
-            // "refs/remotes/origin/HEAD" isn't a real remote-tracking branch
-            .filter(|&(_, branch)| branch != "HEAD")
-            .map(|(remote, branch)| RefName::RemoteBranch {
+            // "refs/remotes/origin/HEAD" isn't a real remote-tracking bookmark
+            .filter(|&(_, bookmark)| bookmark != "HEAD")
+            .map(|(remote, bookmark)| RefName::RemoteBranch {
                 remote: remote.to_string(),
-                branch: branch.to_string(),
+                bookmark: bookmark.to_string(),
             })
     } else {
         ref_name
@@ -93,18 +93,18 @@ pub fn parse_git_ref(ref_name: &str) -> Option<RefName> {
 
 fn to_git_ref_name(parsed_ref: &RefName) -> Option<String> {
     match parsed_ref {
-        RefName::LocalBranch(branch) => {
-            (!branch.is_empty() && branch != "HEAD").then(|| format!("refs/heads/{branch}"))
+        RefName::LocalBranch(bookmark) => {
+            (!bookmark.is_empty() && bookmark != "HEAD").then(|| format!("refs/heads/{bookmark}"))
         }
-        RefName::RemoteBranch { branch, remote } => (!branch.is_empty() && branch != "HEAD")
-            .then(|| format!("refs/remotes/{remote}/{branch}")),
+        RefName::RemoteBranch { bookmark, remote } => (!bookmark.is_empty() && bookmark != "HEAD")
+            .then(|| format!("refs/remotes/{remote}/{bookmark}")),
         RefName::Tag(tag) => Some(format!("refs/tags/{tag}")),
     }
 }
 
-fn to_remote_branch<'a>(parsed_ref: &'a RefName, remote_name: &str) -> Option<&'a str> {
+fn to_remote_bookmark<'a>(parsed_ref: &'a RefName, remote_name: &str) -> Option<&'a str> {
     match parsed_ref {
-        RefName::RemoteBranch { branch, remote } => (remote == remote_name).then_some(branch),
+        RefName::RemoteBranch { bookmark, remote } => (remote == remote_name).then_some(bookmark),
         RefName::LocalBranch(..) | RefName::Tag(..) => None,
     }
 }
@@ -115,7 +115,7 @@ fn to_remote_branch<'a>(parsed_ref: &'a RefName, remote_name: &str) -> Option<&'
 /// Use this as a negative `git_ref_filter` to be passed in to
 /// `import_some_refs()`.
 pub fn is_reserved_git_remote_ref(parsed_ref: &RefName) -> bool {
-    to_remote_branch(parsed_ref, REMOTE_NAME_FOR_LOCAL_GIT_REPO).is_some()
+    to_remote_bookmark(parsed_ref, REMOTE_NAME_FOR_LOCAL_GIT_REPO).is_some()
 }
 
 fn get_git_backend(store: &Store) -> Option<&GitBackend> {
@@ -231,7 +231,7 @@ struct RefsToImport {
 
 /// Reflect changes made in the underlying Git repo in the Jujutsu repo.
 ///
-/// This function detects conflicts (if both Git and JJ modified a branch) and
+/// This function detects conflicts (if both Git and JJ modified a bookmark) and
 /// records them in JJ's view.
 pub fn import_refs(
     mut_repo: &mut MutableRepo,
@@ -242,7 +242,7 @@ pub fn import_refs(
 
 /// Reflect changes made in the underlying Git repo in the Jujutsu repo.
 ///
-/// Only branches whose git full reference name pass the filter will be
+/// Only bookmarks whose git full reference name pass the filter will be
 /// considered for addition, update, or deletion.
 pub fn import_some_refs(
     mut_repo: &mut MutableRepo,
@@ -310,20 +310,25 @@ pub fn import_some_refs(
             },
         };
         match ref_name {
-            RefName::LocalBranch(branch) => {
+            RefName::LocalBranch(bookmark) => {
                 if new_remote_ref.is_tracking() {
-                    mut_repo.merge_local_branch(branch, base_target, &new_remote_ref.target);
+                    mut_repo.merge_local_bookmark(bookmark, base_target, &new_remote_ref.target);
                 }
-                // Update Git-tracking branch like the other remote branches.
-                mut_repo.set_remote_branch(branch, REMOTE_NAME_FOR_LOCAL_GIT_REPO, new_remote_ref);
+                // Update Git-tracking bookmark like the other remote bookmarks.
+                mut_repo.set_remote_bookmark(
+                    bookmark,
+                    REMOTE_NAME_FOR_LOCAL_GIT_REPO,
+                    new_remote_ref,
+                );
             }
-            RefName::RemoteBranch { branch, remote } => {
+            RefName::RemoteBranch { bookmark, remote } => {
                 if new_remote_ref.is_tracking() {
-                    mut_repo.merge_local_branch(branch, base_target, &new_remote_ref.target);
+                    mut_repo.merge_local_bookmark(bookmark, base_target, &new_remote_ref.target);
                 }
-                // Remote-tracking branch is the last known state of the branch in the remote.
-                // It shouldn't diverge even if we had inconsistent view.
-                mut_repo.set_remote_branch(branch, remote, new_remote_ref);
+                // Remote-tracking bookmark is the last known state of the bookmark in the
+                // remote. It shouldn't diverge even if we had inconsistent
+                // view.
+                mut_repo.set_remote_bookmark(bookmark, remote, new_remote_ref);
             }
             RefName::Tag(name) => {
                 if new_remote_ref.is_tracking() {
@@ -364,7 +369,7 @@ fn abandon_unreachable_commits(
         // Local refs are usually visible, no need to filter out hidden
         RevsetExpression::commits(pinned_commit_ids(mut_repo.view())),
         RevsetExpression::commits(remotely_pinned_commit_ids(mut_repo.view()))
-            // Hidden remote branches should not contribute to pinning
+            // Hidden remote bookmarks should not contribute to pinning
             .intersection(&RevsetExpression::visible_heads().ancestors()),
         RevsetExpression::root(),
     ]);
@@ -400,15 +405,15 @@ fn diff_refs_to_import(
         .collect();
     // TODO: migrate tags to the remote view, and don't destructure &RemoteRef
     let mut known_remote_refs: HashMap<RefName, (&RefTarget, RemoteRefState)> = itertools::chain(
-        view.all_remote_branches()
-            .map(|((branch, remote), remote_ref)| {
+        view.all_remote_bookmarks()
+            .map(|((bookmark, remote), remote_ref)| {
                 // TODO: want to abstract local ref as "git" tracking remote, but
                 // we'll probably need to refactor the git_ref_filter API first.
                 let ref_name = if remote == REMOTE_NAME_FOR_LOCAL_GIT_REPO {
-                    RefName::LocalBranch(branch.to_owned())
+                    RefName::LocalBranch(bookmark.to_owned())
                 } else {
                     RefName::RemoteBranch {
-                        branch: branch.to_owned(),
+                        bookmark: bookmark.to_owned(),
                         remote: remote.to_owned(),
                     }
                 };
@@ -431,8 +436,8 @@ fn diff_refs_to_import(
     let chain_git_refs_iters = || -> Result<_, gix::reference::iter::init::Error> {
         // Exclude uninteresting directories such as refs/jj/keep.
         Ok(itertools::chain!(
-            git_references.local_branches()?,
-            git_references.remote_branches()?,
+            git_references.local_bookmarks()?,
+            git_references.remote_bookmarks()?,
             git_references.tags()?,
         ))
     };
@@ -493,10 +498,10 @@ fn diff_refs_to_import(
 
 fn default_remote_ref_state_for(ref_name: &RefName, git_settings: &GitSettings) -> RemoteRefState {
     match ref_name {
-        // LocalBranch means Git-tracking branch
+        // LocalBranch means Git-tracking bookmark
         RefName::LocalBranch(_) | RefName::Tag(_) => RemoteRefState::Tracking,
         RefName::RemoteBranch { .. } => {
-            if git_settings.auto_local_branch {
+            if git_settings.auto_local_bookmark {
                 RemoteRefState::Tracking
             } else {
                 RemoteRefState::New
@@ -505,14 +510,14 @@ fn default_remote_ref_state_for(ref_name: &RefName, git_settings: &GitSettings) 
     }
 }
 
-/// Commits referenced by local branches or tags.
+/// Commits referenced by local bookmarks or tags.
 ///
 /// On `import_refs()`, this is similar to collecting commits referenced by
-/// `view.git_refs()`. Main difference is that local branches can be moved by
+/// `view.git_refs()`. Main difference is that local bookmarks can be moved by
 /// tracking remotes, and such mutation isn't applied to `view.git_refs()` yet.
 fn pinned_commit_ids(view: &View) -> Vec<CommitId> {
     itertools::chain(
-        view.local_branches().map(|(_, target)| target),
+        view.local_bookmarks().map(|(_, target)| target),
         view.tags().values(),
     )
     .flat_map(|target| target.added_ids())
@@ -520,14 +525,14 @@ fn pinned_commit_ids(view: &View) -> Vec<CommitId> {
     .collect()
 }
 
-/// Commits referenced by untracked remote branches including hidden ones.
+/// Commits referenced by untracked remote bookmarks including hidden ones.
 ///
-/// Tracked remote branches aren't included because they should have been merged
-/// into the local counterparts, and the changes pulled from one remote should
-/// propagate to the other remotes on later push. OTOH, untracked remote
-/// branches are considered independent refs.
+/// Tracked remote bookmarks aren't included because they should have been
+/// merged into the local counterparts, and the changes pulled from one remote
+/// should propagate to the other remotes on later push. OTOH, untracked remote
+/// bookmarks are considered independent refs.
 fn remotely_pinned_commit_ids(view: &View) -> Vec<CommitId> {
-    view.all_remote_branches()
+    view.all_remote_bookmarks()
         .filter(|(_, remote_ref)| !remote_ref.is_tracking())
         .map(|(_, remote_ref)| &remote_ref.target)
         .flat_map(|target| target.added_ids())
@@ -537,8 +542,8 @@ fn remotely_pinned_commit_ids(view: &View) -> Vec<CommitId> {
 
 /// Imports `HEAD@git` from the underlying Git repo.
 ///
-/// Unlike `import_refs()`, the old HEAD branch is not abandoned because HEAD
-/// move doesn't always mean the old HEAD branch has been rewritten.
+/// Unlike `import_refs()`, the old HEAD bookmark is not abandoned because HEAD
+/// move doesn't always mean the old HEAD bookmark has been rewritten.
 ///
 /// Unlike `reset_head()`, this function doesn't move the working-copy commit to
 /// the child of the new `HEAD@git` revision.
@@ -611,7 +616,7 @@ pub enum FailedRefExportReason {
     /// should fix it.
     #[error("Ref was in a conflicted state from the last import")]
     ConflictedOldState,
-    /// The branch points to the root commit, which Git doesn't have
+    /// The bookmark points to the root commit, which Git doesn't have
     #[error("Ref cannot point to the root commit in Git")]
     OnRootCommit,
     /// We wanted to delete it, but it had been modified in Git.
@@ -633,18 +638,18 @@ pub enum FailedRefExportReason {
 
 #[derive(Debug)]
 struct RefsToExport {
-    branches_to_update: BTreeMap<RefName, (Option<gix::ObjectId>, gix::ObjectId)>,
-    branches_to_delete: BTreeMap<RefName, gix::ObjectId>,
-    failed_branches: HashMap<RefName, FailedRefExportReason>,
+    bookmarks_to_update: BTreeMap<RefName, (Option<gix::ObjectId>, gix::ObjectId)>,
+    bookmarks_to_delete: BTreeMap<RefName, gix::ObjectId>,
+    failed_bookmarks: HashMap<RefName, FailedRefExportReason>,
 }
 
-/// Export changes to branches made in the Jujutsu repo compared to our last
+/// Export changes to bookmarks made in the Jujutsu repo compared to our last
 /// seen view of the Git repo in `mut_repo.view().git_refs()`. Returns a list of
 /// refs that failed to export.
 ///
-/// We ignore changed branches that are conflicted (were also changed in the Git
-/// repo compared to our last remembered view of the Git repo). These will be
-/// marked conflicted by the next `jj git import`.
+/// We ignore changed bookmarks that are conflicted (were also changed in the
+/// Git repo compared to our last remembered view of the Git repo). These will
+/// be marked conflicted by the next `jj git import`.
 ///
 /// We do not export tags and other refs at the moment, since these aren't
 /// supposed to be modified by JJ. For them, the Git state is considered
@@ -660,9 +665,9 @@ pub fn export_some_refs(
     let git_repo = get_git_repo(mut_repo.store()).ok_or(GitExportError::UnexpectedBackend)?;
 
     let RefsToExport {
-        branches_to_update,
-        branches_to_delete,
-        mut failed_branches,
+        bookmarks_to_update,
+        bookmarks_to_delete,
+        mut failed_bookmarks,
     } = diff_refs_to_export(
         mut_repo.view(),
         mut_repo.store().root_commit_id(),
@@ -689,9 +694,9 @@ pub fn export_some_refs(
                 )) => None, // Unborn ref should be considered absent
                 Err(err) => return Err(GitExportError::from_git(err)),
             };
-            let new_oid = if let Some((_old_oid, new_oid)) = branches_to_update.get(&parsed_ref) {
+            let new_oid = if let Some((_old_oid, new_oid)) = bookmarks_to_update.get(&parsed_ref) {
                 Some(new_oid)
-            } else if branches_to_delete.contains_key(&parsed_ref) {
+            } else if bookmarks_to_delete.contains_key(&parsed_ref) {
                 None
             } else {
                 current_oid.as_ref()
@@ -701,88 +706,89 @@ pub fn export_some_refs(
             }
         }
     }
-    for (parsed_ref_name, old_oid) in branches_to_delete {
+    for (parsed_ref_name, old_oid) in bookmarks_to_delete {
         let Some(git_ref_name) = to_git_ref_name(&parsed_ref_name) else {
-            failed_branches.insert(parsed_ref_name, FailedRefExportReason::InvalidGitName);
+            failed_bookmarks.insert(parsed_ref_name, FailedRefExportReason::InvalidGitName);
             continue;
         };
         if let Err(reason) = delete_git_ref(&git_repo, &git_ref_name, &old_oid) {
-            failed_branches.insert(parsed_ref_name, reason);
+            failed_bookmarks.insert(parsed_ref_name, reason);
         } else {
             let new_target = RefTarget::absent();
             mut_repo.set_git_ref_target(&git_ref_name, new_target);
         }
     }
-    for (parsed_ref_name, (old_oid, new_oid)) in branches_to_update {
+    for (parsed_ref_name, (old_oid, new_oid)) in bookmarks_to_update {
         let Some(git_ref_name) = to_git_ref_name(&parsed_ref_name) else {
-            failed_branches.insert(parsed_ref_name, FailedRefExportReason::InvalidGitName);
+            failed_bookmarks.insert(parsed_ref_name, FailedRefExportReason::InvalidGitName);
             continue;
         };
         if let Err(reason) = update_git_ref(&git_repo, &git_ref_name, old_oid, new_oid) {
-            failed_branches.insert(parsed_ref_name, reason);
+            failed_bookmarks.insert(parsed_ref_name, reason);
         } else {
             let new_target = RefTarget::normal(CommitId::from_bytes(new_oid.as_bytes()));
             mut_repo.set_git_ref_target(&git_ref_name, new_target);
         }
     }
 
-    copy_exportable_local_branches_to_remote_view(
+    copy_exportable_local_bookmarks_to_remote_view(
         mut_repo,
         REMOTE_NAME_FOR_LOCAL_GIT_REPO,
-        |ref_name| git_ref_filter(ref_name) && !failed_branches.contains_key(ref_name),
+        |ref_name| git_ref_filter(ref_name) && !failed_bookmarks.contains_key(ref_name),
     );
 
-    let failed_branches = failed_branches
+    let failed_bookmarks = failed_bookmarks
         .into_iter()
         .map(|(name, reason)| FailedRefExport { name, reason })
         .sorted_unstable_by(|a, b| a.name.cmp(&b.name))
         .collect();
-    Ok(failed_branches)
+    Ok(failed_bookmarks)
 }
 
-fn copy_exportable_local_branches_to_remote_view(
+fn copy_exportable_local_bookmarks_to_remote_view(
     mut_repo: &mut MutableRepo,
     remote_name: &str,
     git_ref_filter: impl Fn(&RefName) -> bool,
 ) {
-    let new_local_branches = mut_repo
+    let new_local_bookmarks = mut_repo
         .view()
-        .local_remote_branches(remote_name)
-        .filter_map(|(branch, targets)| {
-            // TODO: filter out untracked branches (if we add support for untracked @git
-            // branches)
+        .local_remote_bookmarks(remote_name)
+        .filter_map(|(bookmark, targets)| {
+            // TODO: filter out untracked bookmarks (if we add support for untracked @git
+            // bookmarks)
             let old_target = &targets.remote_ref.target;
             let new_target = targets.local_target;
-            (!new_target.has_conflict() && old_target != new_target).then_some((branch, new_target))
+            (!new_target.has_conflict() && old_target != new_target)
+                .then_some((bookmark, new_target))
         })
-        .filter(|&(branch, _)| git_ref_filter(&RefName::LocalBranch(branch.to_owned())))
-        .map(|(branch, new_target)| (branch.to_owned(), new_target.clone()))
+        .filter(|&(bookmark, _)| git_ref_filter(&RefName::LocalBranch(bookmark.to_owned())))
+        .map(|(bookmark, new_target)| (bookmark.to_owned(), new_target.clone()))
         .collect_vec();
-    for (branch, new_target) in new_local_branches {
+    for (bookmark, new_target) in new_local_bookmarks {
         let new_remote_ref = RemoteRef {
             target: new_target,
             state: RemoteRefState::Tracking,
         };
-        mut_repo.set_remote_branch(&branch, remote_name, new_remote_ref);
+        mut_repo.set_remote_bookmark(&bookmark, remote_name, new_remote_ref);
     }
 }
 
-/// Calculates diff of branches to be exported.
+/// Calculates diff of bookmarks to be exported.
 fn diff_refs_to_export(
     view: &View,
     root_commit_id: &CommitId,
     git_ref_filter: impl Fn(&RefName) -> bool,
 ) -> RefsToExport {
     // Local targets will be copied to the "git" remote if successfully exported. So
-    // the local branches are considered to be the new "git" remote branches.
-    let mut all_branch_targets: HashMap<RefName, (&RefTarget, &RefTarget)> = itertools::chain(
-        view.local_branches()
-            .map(|(branch, target)| (RefName::LocalBranch(branch.to_owned()), target)),
-        view.all_remote_branches()
+    // the local bookmarks are considered to be the new "git" remote bookmarks.
+    let mut all_bookmark_targets: HashMap<RefName, (&RefTarget, &RefTarget)> = itertools::chain(
+        view.local_bookmarks()
+            .map(|(bookmark, target)| (RefName::LocalBranch(bookmark.to_owned()), target)),
+        view.all_remote_bookmarks()
             .filter(|&((_, remote), _)| remote != REMOTE_NAME_FOR_LOCAL_GIT_REPO)
-            .map(|((branch, remote), remote_ref)| {
+            .map(|((bookmark, remote), remote_ref)| {
                 let ref_name = RefName::RemoteBranch {
-                    branch: branch.to_owned(),
+                    bookmark: bookmark.to_owned(),
                     remote: remote.to_owned(),
                 };
                 (ref_name, &remote_ref.target)
@@ -799,8 +805,8 @@ fn diff_refs_to_export(
             (ref_name, target)
         })
         .filter(|(ref_name, _)| {
-            // There are two situations where remote-tracking branches get out of sync:
-            // 1. `jj branch forget`
+            // There are two situations where remote-tracking bookmarks get out of sync:
+            // 1. `jj bookmark forget`
             // 2. `jj op undo`/`restore` in colocated repo
             matches!(
                 ref_name,
@@ -809,23 +815,23 @@ fn diff_refs_to_export(
         })
         .filter(|(ref_name, _)| git_ref_filter(ref_name));
     for (ref_name, target) in known_git_refs {
-        all_branch_targets
+        all_bookmark_targets
             .entry(ref_name)
             .and_modify(|(old_target, _)| *old_target = target)
             .or_insert((target, RefTarget::absent_ref()));
     }
 
-    let mut branches_to_update = BTreeMap::new();
-    let mut branches_to_delete = BTreeMap::new();
-    let mut failed_branches = HashMap::new();
+    let mut bookmarks_to_update = BTreeMap::new();
+    let mut bookmarks_to_delete = BTreeMap::new();
+    let mut failed_bookmarks = HashMap::new();
     let root_commit_target = RefTarget::normal(root_commit_id.clone());
-    for (ref_name, (old_target, new_target)) in all_branch_targets {
+    for (ref_name, (old_target, new_target)) in all_bookmark_targets {
         if new_target == old_target {
             continue;
         }
         if *new_target == root_commit_target {
             // Git doesn't have a root commit
-            failed_branches.insert(ref_name, FailedRefExportReason::OnRootCommit);
+            failed_bookmarks.insert(ref_name, FailedRefExportReason::OnRootCommit);
             continue;
         }
         let old_oid = if let Some(id) = old_target.as_normal() {
@@ -833,7 +839,7 @@ fn diff_refs_to_export(
         } else if old_target.has_conflict() {
             // The old git ref should only be a conflict if there were concurrent import
             // operations while the value changed. Don't overwrite these values.
-            failed_branches.insert(ref_name, FailedRefExportReason::ConflictedOldState);
+            failed_bookmarks.insert(ref_name, FailedRefExportReason::ConflictedOldState);
             continue;
         } else {
             assert!(old_target.is_absent());
@@ -841,20 +847,20 @@ fn diff_refs_to_export(
         };
         if let Some(id) = new_target.as_normal() {
             let new_oid = gix::ObjectId::try_from(id.as_bytes()).unwrap();
-            branches_to_update.insert(ref_name, (old_oid, new_oid));
+            bookmarks_to_update.insert(ref_name, (old_oid, new_oid));
         } else if new_target.has_conflict() {
             // Skip conflicts and leave the old value in git_refs
             continue;
         } else {
             assert!(new_target.is_absent());
-            branches_to_delete.insert(ref_name, old_oid.unwrap());
+            bookmarks_to_delete.insert(ref_name, old_oid.unwrap());
         }
     }
 
     RefsToExport {
-        branches_to_update,
-        branches_to_delete,
-        failed_branches,
+        bookmarks_to_update,
+        bookmarks_to_delete,
+        failed_bookmarks,
     }
 }
 
@@ -865,16 +871,16 @@ fn delete_git_ref(
 ) -> Result<(), FailedRefExportReason> {
     if let Ok(git_ref) = git_repo.find_reference(git_ref_name) {
         if git_ref.inner.target.try_id() == Some(old_oid) {
-            // The branch has not been updated by git, so go ahead and delete it
+            // The bookmark has not been updated by git, so go ahead and delete it
             git_ref
                 .delete()
                 .map_err(|err| FailedRefExportReason::FailedToDelete(err.into()))?;
         } else {
-            // The branch was updated by git
+            // The bookmark was updated by git
             return Err(FailedRefExportReason::DeletedInJjModifiedInGit);
         }
     } else {
-        // The branch is already deleted
+        // The bookmark is already deleted
     }
     Ok(())
 }
@@ -888,13 +894,13 @@ fn update_git_ref(
     match old_oid {
         None => {
             if let Ok(git_repo_ref) = git_repo.find_reference(git_ref_name) {
-                // The branch was added in jj and in git. We're good if and only if git
+                // The bookmark was added in jj and in git. We're good if and only if git
                 // pointed it to our desired target.
                 if git_repo_ref.inner.target.try_id() != Some(&new_oid) {
                     return Err(FailedRefExportReason::AddedInJjAddedInGit);
                 }
             } else {
-                // The branch was added in jj but still doesn't exist in git, so add it
+                // The bookmark was added in jj but still doesn't exist in git, so add it
                 git_repo
                     .reference(
                         git_ref_name,
@@ -906,7 +912,8 @@ fn update_git_ref(
             }
         }
         Some(old_oid) => {
-            // The branch was modified in jj. We can use gix API for updating under a lock.
+            // The bookmark was modified in jj. We can use gix API for updating under a
+            // lock.
             if let Err(err) = git_repo.reference(
                 git_ref_name,
                 new_oid,
@@ -944,7 +951,7 @@ fn update_git_head(
         gix::refs::Target::Object(oid)
     } else {
         // Can't detach HEAD without a commit. Use placeholder ref to nullify
-        // the HEAD. The placeholder ref isn't a normal branch ref. Git CLI
+        // the HEAD. The placeholder ref isn't a normal bookmark ref. Git CLI
         // appears to deal with that, and can move the placeholder ref. So we
         // need to ensure that the ref doesn't exist.
         ref_edits.push(gix::refs::transaction::RefEdit {
@@ -1028,7 +1035,7 @@ pub fn reset_head(
         // Can't detach HEAD without a commit. Use placeholder ref to nullify the HEAD.
         // We can't set_head() an arbitrary unborn ref, so use reference_symbolic()
         // instead. Git CLI appears to deal with that. It would be nice if Git CLI
-        // couldn't create a commit without setting a valid branch name.
+        // couldn't create a commit without setting a valid bookmark name.
         if mut_repo.git_head().is_present() {
             match git_repo.find_reference(UNBORN_ROOT_REF_NAME) {
                 Ok(mut git_repo_ref) => git_repo_ref.delete()?,
@@ -1212,7 +1219,7 @@ pub enum GitFetchError {
     #[error("No git remote named '{0}'")]
     NoSuchRemote(String),
     #[error(
-        "Invalid branch pattern provided. Patterns may not contain the characters `{chars}`",
+        "Invalid bookmark pattern provided. Patterns may not contain the characters `{chars}`",
         chars = INVALID_REFSPEC_CHARS.iter().join("`, `")
     )]
     InvalidBranchPattern,
@@ -1226,8 +1233,8 @@ pub enum GitFetchError {
 /// Describes successful `fetch()` result.
 #[derive(Clone, Debug, Eq, PartialEq, Default)]
 pub struct GitFetchStats {
-    /// Remote's default branch.
-    pub default_branch: Option<String>,
+    /// Remote's default bookmark.
+    pub default_bookmark: Option<String>,
     /// Changes made by the import.
     pub import_stats: GitImportStats,
 }
@@ -1237,12 +1244,12 @@ pub fn fetch(
     mut_repo: &mut MutableRepo,
     git_repo: &git2::Repository,
     remote_name: &str,
-    branch_names: &[StringPattern],
+    bookmark_names: &[StringPattern],
     callbacks: RemoteCallbacks<'_>,
     git_settings: &GitSettings,
 ) -> Result<GitFetchStats, GitFetchError> {
     // Perform a `git fetch` on the local git repo, updating the remote-tracking
-    // branches in the git repo.
+    // bookmarks in the git repo.
     let mut remote = git_repo.find_remote(remote_name).map_err(|err| {
         if is_remote_not_found_err(&err) {
             GitFetchError::NoSuchRemote(remote_name.to_string())
@@ -1256,9 +1263,9 @@ pub fn fetch(
     fetch_options.proxy_options(proxy_options);
     let callbacks = callbacks.into_git();
     fetch_options.remote_callbacks(callbacks);
-    // At this point, we are only updating Git's remote tracking branches, not the
-    // local branches.
-    let refspecs: Vec<_> = branch_names
+    // At this point, we are only updating Git's remote tracking bookmarks, not the
+    // local bookmarks.
+    let refspecs: Vec<_> = bookmark_names
         .iter()
         .map(|pattern| {
             pattern
@@ -1284,33 +1291,37 @@ pub fn fetch(
         git2::AutotagOption::Unspecified,
         None,
     )?;
-    // TODO: We could make it optional to get the default branch since we only care
-    // about it on clone.
-    let mut default_branch = None;
-    if let Ok(default_ref_buf) = remote.default_branch() {
+    // TODO: We could make it optional to get the default bookmark since we only
+    // care about it on clone.
+    let mut default_bookmark = None;
+    if let Ok(default_ref_buf) = remote.default_bookmark() {
         if let Some(default_ref) = default_ref_buf.as_str() {
-            // LocalBranch here is the local branch on the remote, so it's really the remote
-            // branch
-            if let Some(RefName::LocalBranch(branch_name)) = parse_git_ref(default_ref) {
-                tracing::debug!(default_branch = branch_name);
-                default_branch = Some(branch_name);
+            // LocalBranch here is the local bookmark on the remote, so it's really the
+            // remote bookmark
+            if let Some(RefName::LocalBranch(bookmark_name)) = parse_git_ref(default_ref) {
+                tracing::debug!(default_bookmark = bookmark_name);
+                default_bookmark = Some(bookmark_name);
             }
         }
     }
     tracing::debug!("remote.disconnect");
     remote.disconnect()?;
 
-    // Import the remote-tracking branches into the jj repo and update jj's
-    // local branches. We also import local tags since remote tags should have
+    // Import the remote-tracking bookmarks into the jj repo and update jj's
+    // local bookmarks. We also import local tags since remote tags should have
     // been merged by Git.
     tracing::debug!("import_refs");
     let import_stats = import_some_refs(mut_repo, git_settings, |ref_name| {
-        to_remote_branch(ref_name, remote_name)
-            .map(|branch| branch_names.iter().any(|pattern| pattern.matches(branch)))
+        to_remote_bookmark(ref_name, remote_name)
+            .map(|bookmark| {
+                bookmark_names
+                    .iter()
+                    .any(|pattern| pattern.matches(bookmark))
+            })
             .unwrap_or_else(|| matches!(ref_name, RefName::Tag(_)))
     })?;
     let stats = GitFetchStats {
-        default_branch,
+        default_bookmark,
         import_stats,
     };
     Ok(stats)
@@ -1337,7 +1348,7 @@ pub enum GitPushError {
 
 #[derive(Clone, Debug)]
 pub struct GitBranchPushTargets {
-    pub branch_updates: Vec<(String, BranchPushUpdate)>,
+    pub bookmark_updates: Vec<(String, BranchPushUpdate)>,
 }
 
 pub struct GitRefUpdate {
@@ -1345,13 +1356,13 @@ pub struct GitRefUpdate {
     /// Expected position on the remote or None if we expect the ref to not
     /// exist on the remote
     ///
-    /// This is sourced from the local remote-tracking branch.
+    /// This is sourced from the local remote-tracking bookmark.
     pub expected_current_target: Option<CommitId>,
     pub new_target: Option<CommitId>,
 }
 
-/// Pushes the specified branches and updates the repo view accordingly.
-pub fn push_branches(
+/// Pushes the specified bookmarks and updates the repo view accordingly.
+pub fn push_bookmarks(
     mut_repo: &mut MutableRepo,
     git_repo: &git2::Repository,
     remote_name: &str,
@@ -1359,10 +1370,10 @@ pub fn push_branches(
     callbacks: RemoteCallbacks<'_>,
 ) -> Result<(), GitPushError> {
     let ref_updates = targets
-        .branch_updates
+        .bookmark_updates
         .iter()
-        .map(|(branch_name, update)| GitRefUpdate {
-            qualified_name: format!("refs/heads/{branch_name}"),
+        .map(|(bookmark_name, update)| GitRefUpdate {
+            qualified_name: format!("refs/heads/{bookmark_name}"),
             expected_current_target: update.old_target.clone(),
             new_target: update.new_target.clone(),
         })
@@ -1372,14 +1383,14 @@ pub fn push_branches(
     // TODO: add support for partially pushed refs? we could update the view
     // excluding rejected refs, but the transaction would be aborted anyway
     // if we returned an Err.
-    for (branch_name, update) in &targets.branch_updates {
-        let git_ref_name = format!("refs/remotes/{remote_name}/{branch_name}");
+    for (bookmark_name, update) in &targets.bookmark_updates {
+        let git_ref_name = format!("refs/remotes/{remote_name}/{bookmark_name}");
         let new_remote_ref = RemoteRef {
             target: RefTarget::resolved(update.new_target.clone()),
             state: RemoteRefState::Tracking,
         };
         mut_repo.set_git_ref_target(&git_ref_name, new_remote_ref.target.clone());
-        mut_repo.set_remote_branch(branch_name, remote_name, new_remote_ref);
+        mut_repo.set_remote_bookmark(bookmark_name, remote_name, new_remote_ref);
     }
 
     Ok(())
@@ -1408,7 +1419,7 @@ pub fn push_updates(
         } else {
             // Prefixing this with `+` to force-push or not should make no
             // difference. The push negotiation happens regardless, and wouldn't
-            // allow creating a branch if it's not a fast-forward.
+            // allow creating a bookmark if it's not a fast-forward.
             refspecs.push(format!(":{}", update.qualified_name));
         }
     }
@@ -1475,9 +1486,9 @@ fn push_refs(
                     Ok(PushAllowReason::NormalMatch) => {}
                     Ok(PushAllowReason::UnexpectedNoop) => {
                         tracing::info!(
-                            "The push of {dst_refname} is unexpectedly a no-op, the remote branch \
-                             is already at {actual_remote_location:?}. We expected it to be at \
-                             {expected_remote_location:?}. We don't consider this an error.",
+                            "The push of {dst_refname} is unexpectedly a no-op, the remote \
+                             bookmark is already at {actual_remote_location:?}. We expected it to \
+                             be at {expected_remote_location:?}. We don't consider this an error.",
                         );
                     }
                     Ok(PushAllowReason::ExceptionalFastforward) => {
@@ -1495,7 +1506,7 @@ fn push_refs(
                         // While we show debug info in the message with `--debug`,
                         // there's probably no need to show the detailed commit
                         // locations to the user normally. They should do a `jj git
-                        // fetch`, and the resulting branch conflicts should contain
+                        // fetch`, and the resulting bookmark conflicts should contain
                         // all the information they need.
                         tracing::info!(
                             "Cannot push {dst_refname} to {local_location:?}; it is at \
@@ -1587,7 +1598,7 @@ fn allow_push(
     // The push destination is the local position of the ref
     let local_target = RefTarget::resolved(destination_location.cloned());
     if refs::merge_ref_targets(index, &remote_target, &base_target, &local_target) == local_target {
-        // Fetch would not change the local branch, so the push is OK in spite of
+        // Fetch would not change the local bookmark, so the push is OK in spite of
         // the discrepancy with the expected location. We return some debug info and
         // verify some invariants before OKing the push.
         Ok(if actual_remote_location == destination_location {

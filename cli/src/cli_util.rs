@@ -497,36 +497,36 @@ impl ReadonlyUserRepo {
     }
 }
 
-/// A branch that should be advanced to satisfy the "advance-branches" feature.
-/// This is a helper for `WorkspaceCommandTransaction`. It provides a type-safe
-/// way to separate the work of checking whether a branch can be advanced and
-/// actually advancing it. Advancing the branch never fails, but can't be done
-/// until the new `CommitId` is available. Splitting the work in this way also
-/// allows us to identify eligible branches without actually moving them and
-/// return config errors to the user early.
+/// A bookmark that should be advanced to satisfy the "advance-bookmarkes"
+/// feature. This is a helper for `WorkspaceCommandTransaction`. It provides a
+/// type-safe way to separate the work of checking whether a bookmark can be
+/// advanced and actually advancing it. Advancing the bookmark never fails, but
+/// can't be done until the new `CommitId` is available. Splitting the work in
+/// this way also allows us to identify eligible bookmarkes without actually
+/// moving them and return config errors to the user early.
 pub struct AdvanceableBranch {
     name: String,
     old_commit_id: CommitId,
 }
 
-/// Helper for parsing and evaluating settings for the advance-branches feature.
-/// Settings are configured in the jj config.toml as lists of [`StringPattern`]s
-/// for enabled and disabled branches. Example:
+/// Helper for parsing and evaluating settings for the advance-bookmarkes
+/// feature. Settings are configured in the jj config.toml as lists of
+/// [`StringPattern`]s for enabled and disabled bookmarkes. Example:
 /// ```toml
-/// [experimental-advance-branches]
-/// # Enable the feature for all branches except "main".
-/// enabled-branches = ["glob:*"]
-/// disabled-branches = ["main"]
+/// [experimental-advance-bookmarkes]
+/// # Enable the feature for all bookmarkes except "main".
+/// enabled-bookmarkes = ["glob:*"]
+/// disabled-bookmarkes = ["main"]
 /// ```
 struct AdvanceBranchesSettings {
-    enabled_branches: Vec<StringPattern>,
-    disabled_branches: Vec<StringPattern>,
+    enabled_bookmarkes: Vec<StringPattern>,
+    disabled_bookmarkes: Vec<StringPattern>,
 }
 
 impl AdvanceBranchesSettings {
     fn from_config(config: &config::Config) -> Result<Self, CommandError> {
         let get_setting = |setting_key| {
-            let setting = format!("experimental-advance-branches.{setting_key}");
+            let setting = format!("experimental-advance-bookmarkes.{setting_key}");
             match config.get::<Vec<String>>(&setting).optional()? {
                 Some(patterns) => patterns
                     .into_iter()
@@ -543,28 +543,30 @@ impl AdvanceBranchesSettings {
             }
         };
         Ok(Self {
-            enabled_branches: get_setting("enabled-branches")?,
-            disabled_branches: get_setting("disabled-branches")?,
+            enabled_bookmarkes: get_setting("enabled-bookmarkes")?,
+            disabled_bookmarkes: get_setting("disabled-bookmarkes")?,
         })
     }
 
-    /// Returns true if the advance-branches feature is enabled for
-    /// `branch_name`.
-    fn branch_is_eligible(&self, branch_name: &str) -> bool {
+    /// Returns true if the advance-bookmarkes feature is enabled for
+    /// `bookmark_name`.
+    fn bookmark_is_eligible(&self, bookmark_name: &str) -> bool {
         if self
-            .disabled_branches
+            .disabled_bookmarkes
             .iter()
-            .any(|d| d.matches(branch_name))
+            .any(|d| d.matches(bookmark_name))
         {
             return false;
         }
-        self.enabled_branches.iter().any(|e| e.matches(branch_name))
+        self.enabled_bookmarkes
+            .iter()
+            .any(|e| e.matches(bookmark_name))
     }
 
-    /// Returns true if the config includes at least one "enabled-branches"
+    /// Returns true if the config includes at least one "enabled-bookmarkes"
     /// pattern.
     fn feature_enabled(&self) -> bool {
-        !self.enabled_branches.is_empty()
+        !self.enabled_bookmarkes.is_empty()
     }
 }
 
@@ -725,11 +727,11 @@ impl WorkspaceCommandHelper {
         Ok(())
     }
 
-    /// Imports branches and tags from the underlying Git repo, abandons old
-    /// branches.
+    /// Imports bookmarkes and tags from the underlying Git repo, abandons old
+    /// bookmarkes.
     ///
-    /// If the working-copy branch is rebased, and if update is allowed, the new
-    /// working-copy commit will be checked out.
+    /// If the working-copy bookmark is rebased, and if update is allowed, the
+    /// new working-copy commit will be checked out.
     ///
     /// This function does not import the Git HEAD, but the HEAD may be reset to
     /// the working copy parent if the repository is colocated.
@@ -1365,8 +1367,8 @@ See https://github.com/martinvonz/jj/blob/main/docs/working-copy.md#stale-workin
             }
 
             if self.working_copy_shared_with_git {
-                let failed_branches = git::export_refs(mut_repo)?;
-                print_failed_git_export(ui, &failed_branches)?;
+                let failed_bookmarkes = git::export_refs(mut_repo)?;
+                print_failed_git_export(ui, &failed_bookmarkes)?;
             }
 
             self.user_repo = ReadonlyUserRepo::new(tx.commit("snapshot working copy"));
@@ -1482,8 +1484,8 @@ See https://github.com/martinvonz/jj/blob/main/docs/working-copy.md#stale-workin
             if let Some(wc_commit) = &maybe_new_wc_commit {
                 git::reset_head(tx.mut_repo(), &git_repo, wc_commit)?;
             }
-            let failed_branches = git::export_refs(tx.mut_repo())?;
-            print_failed_git_export(ui, &failed_branches)?;
+            let failed_bookmarkes = git::export_refs(tx.mut_repo())?;
+            print_failed_git_export(ui, &failed_bookmarkes)?;
         }
 
         self.user_repo = ReadonlyUserRepo::new(tx.commit(description));
@@ -1667,20 +1669,21 @@ Then run `jj squash` to move the resolution into the conflicted commit."#,
         Ok(())
     }
 
-    /// Identifies branches which are eligible to be moved automatically during
-    /// `jj commit` and `jj new`. Whether a branch is eligible is determined by
-    /// its target and the user and repo config for "advance-branches".
+    /// Identifies bookmarkes which are eligible to be moved automatically
+    /// during `jj commit` and `jj new`. Whether a bookmark is eligible is
+    /// determined by its target and the user and repo config for
+    /// "advance-bookmarkes".
     ///
-    /// Returns a Vec of branches in `repo` that point to any of the `from`
+    /// Returns a Vec of bookmarkes in `repo` that point to any of the `from`
     /// commits and that are eligible to advance. The `from` commits are
     /// typically the parents of the target commit of `jj commit` or `jj new`.
     ///
     /// Branches are not moved until
-    /// `WorkspaceCommandTransaction::advance_branches()` is called with the
+    /// `WorkspaceCommandTransaction::advance_bookmarkes()` is called with the
     /// `AdvanceableBranch`s returned by this function.
     ///
-    /// Returns an empty `std::Vec` if no branches are eligible to advance.
-    pub fn get_advanceable_branches<'a>(
+    /// Returns an empty `std::Vec` if no bookmarkes are eligible to advance.
+    pub fn get_advanceable_bookmarkes<'a>(
         &self,
         from: impl IntoIterator<Item = &'a CommitId>,
     ) -> Result<Vec<AdvanceableBranch>, CommandError> {
@@ -1690,11 +1693,11 @@ Then run `jj squash` to move the resolution into the conflicted commit."#,
             return Ok(Vec::new());
         }
 
-        let mut advanceable_branches = Vec::new();
+        let mut advanceable_bookmarkes = Vec::new();
         for from_commit in from {
-            for (name, _) in self.repo().view().local_branches_for_commit(from_commit) {
-                if ab_settings.branch_is_eligible(name) {
-                    advanceable_branches.push(AdvanceableBranch {
+            for (name, _) in self.repo().view().local_bookmarkes_for_commit(from_commit) {
+                if ab_settings.bookmark_is_eligible(name) {
+                    advanceable_bookmarkes.push(AdvanceableBranch {
                         name: name.to_owned(),
                         old_commit_id: from_commit.clone(),
                     });
@@ -1702,7 +1705,7 @@ Then run `jj squash` to move the resolution into the conflicted commit."#,
             }
         }
 
-        Ok(advanceable_branches)
+        Ok(advanceable_bookmarkes)
     }
 }
 
@@ -1820,18 +1823,18 @@ impl WorkspaceCommandTransaction<'_> {
         self.tx
     }
 
-    /// Moves each branch in `branches` from an old commit it's associated with
-    /// (configured by `get_advanceable_branches`) to the `move_to` commit. If
-    /// the branch is conflicted before the update, it will remain conflicted
-    /// after the update, but the conflict will involve the `move_to` commit
-    /// instead of the old commit.
-    pub fn advance_branches(&mut self, branches: Vec<AdvanceableBranch>, move_to: &CommitId) {
-        for branch in branches {
-            // This removes the old commit ID from the branch's RefTarget and
+    /// Moves each bookmark in `bookmarkes` from an old commit it's associated
+    /// with (configured by `get_advanceable_bookmarkes`) to the `move_to`
+    /// commit. If the bookmark is conflicted before the update, it will
+    /// remain conflicted after the update, but the conflict will involve
+    /// the `move_to` commit instead of the old commit.
+    pub fn advance_bookmarkes(&mut self, bookmarkes: Vec<AdvanceableBranch>, move_to: &CommitId) {
+        for bookmark in bookmarkes {
+            // This removes the old commit ID from the bookmark's RefTarget and
             // replaces it with the `move_to` ID.
-            self.mut_repo().merge_local_branch(
-                &branch.name,
-                &RefTarget::normal(branch.old_commit_id),
+            self.mut_repo().merge_local_bookmark(
+                &bookmark.name,
+                &RefTarget::normal(bookmark.old_commit_id),
                 &RefTarget::normal(move_to.clone()),
             );
         }
@@ -2125,35 +2128,35 @@ pub fn print_unmatched_explicit_paths<'a>(
     Ok(())
 }
 
-pub fn print_trackable_remote_branches(ui: &Ui, view: &View) -> io::Result<()> {
-    let remote_branch_names = view
-        .branches()
-        .filter(|(_, branch_target)| branch_target.local_target.is_present())
-        .flat_map(|(name, branch_target)| {
-            branch_target
+pub fn print_trackable_remote_bookmarkes(ui: &Ui, view: &View) -> io::Result<()> {
+    let remote_bookmark_names = view
+        .bookmarkes()
+        .filter(|(_, bookmark_target)| bookmark_target.local_target.is_present())
+        .flat_map(|(name, bookmark_target)| {
+            bookmark_target
                 .remote_refs
                 .into_iter()
                 .filter(|&(_, remote_ref)| !remote_ref.is_tracking())
                 .map(move |(remote, _)| format!("{name}@{remote}"))
         })
         .collect_vec();
-    if remote_branch_names.is_empty() {
+    if remote_bookmark_names.is_empty() {
         return Ok(());
     }
 
     if let Some(mut formatter) = ui.status_formatter() {
         writeln!(
             formatter.labeled("hint").with_heading("Hint: "),
-            "The following remote branches aren't associated with the existing local branches:"
+            "The following remote bookmarkes aren't associated with the existing local bookmarkes:"
         )?;
-        for full_name in &remote_branch_names {
+        for full_name in &remote_bookmark_names {
             write!(formatter, "  ")?;
-            writeln!(formatter.labeled("branch"), "{full_name}")?;
+            writeln!(formatter.labeled("bookmark"), "{full_name}")?;
         }
         writeln!(
             formatter.labeled("hint").with_heading("Hint: "),
-            "Run `jj branch track {names}` to keep local branches updated on future pulls.",
-            names = remote_branch_names.join(" "),
+            "Run `jj bookmark track {names}` to keep local bookmarkes updated on future pulls.",
+            names = remote_bookmark_names.join(" "),
         )?;
     }
     Ok(())
@@ -2402,20 +2405,20 @@ impl DiffSelector {
 
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct RemoteBranchName {
-    pub branch: String,
+    pub bookmark: String,
     pub remote: String,
 }
 
 impl fmt::Display for RemoteBranchName {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let RemoteBranchName { branch, remote } = self;
-        write!(f, "{branch}@{remote}")
+        let RemoteBranchName { bookmark, remote } = self;
+        write!(f, "{bookmark}@{remote}")
     }
 }
 
 #[derive(Clone, Debug)]
 pub struct RemoteBranchNamePattern {
-    pub branch: StringPattern,
+    pub bookmark: StringPattern,
     pub remote: StringPattern,
 }
 
@@ -2423,8 +2426,8 @@ impl FromStr for RemoteBranchNamePattern {
     type Err = String;
 
     fn from_str(src: &str) -> Result<Self, Self::Err> {
-        // The kind prefix applies to both branch and remote fragments. It's
-        // weird that unanchored patterns like substring:branch@remote is split
+        // The kind prefix applies to both bookmark and remote fragments. It's
+        // weird that unanchored patterns like substring:bookmark@remote is split
         // into two, but I can't think of a better syntax.
         // TODO: should we disable substring pattern? what if we added regex?
         let (maybe_kind, pat) = src
@@ -2437,12 +2440,12 @@ impl FromStr for RemoteBranchNamePattern {
                 Ok(StringPattern::exact(pat))
             }
         };
-        // TODO: maybe reuse revset parser to handle branch/remote name containing @
-        let (branch, remote) = pat
-            .rsplit_once('@')
-            .ok_or_else(|| "remote branch must be specified in branch@remote form".to_owned())?;
+        // TODO: maybe reuse revset parser to handle bookmark/remote name containing @
+        let (bookmark, remote) = pat.rsplit_once('@').ok_or_else(|| {
+            "remote bookmark must be specified in bookmark@remote form".to_owned()
+        })?;
         Ok(RemoteBranchNamePattern {
-            branch: to_pattern(branch)?,
+            bookmark: to_pattern(bookmark)?,
             remote: to_pattern(remote)?,
         })
     }
@@ -2450,14 +2453,14 @@ impl FromStr for RemoteBranchNamePattern {
 
 impl RemoteBranchNamePattern {
     pub fn is_exact(&self) -> bool {
-        self.branch.is_exact() && self.remote.is_exact()
+        self.bookmark.is_exact() && self.remote.is_exact()
     }
 }
 
 impl fmt::Display for RemoteBranchNamePattern {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let RemoteBranchNamePattern { branch, remote } = self;
-        write!(f, "{branch}@{remote}")
+        let RemoteBranchNamePattern { bookmark, remote } = self;
+        write!(f, "{bookmark}@{remote}")
     }
 }
 

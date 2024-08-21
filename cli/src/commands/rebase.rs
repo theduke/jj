@@ -50,7 +50,7 @@ use crate::ui::Ui;
 /// Move revisions to different parent(s)
 ///
 /// There are three different ways of specifying which revisions to rebase:
-/// `-b` to rebase a whole branch, `-s` to rebase a revision and its
+/// `-b` to rebase a whole bookmark, `-s` to rebase a revision and its
 /// descendants, and `-r` to rebase a single commit. If none of them is
 /// specified, it defaults to `-b @`.
 ///
@@ -73,8 +73,8 @@ use crate::ui::Ui;
 /// J           J
 /// ```
 ///
-/// With `-b`, the command rebases the whole "branch" containing the specified
-/// revision. A "branch" is the set of commits that includes:
+/// With `-b`, the command rebases the whole "bookmark" containing the specified
+/// revision. A "bookmark" is the set of commits that includes:
 ///
 /// * the specified revision and ancestors that are not also ancestors of the
 ///   destination
@@ -84,7 +84,7 @@ use crate::ui::Ui;
 /// `(Y..X)::` (which is equivalent to `jj rebase -s 'roots(Y..X)' -d Y` for a
 /// single root). For example, either `jj rebase -b L -d O` or `jj rebase -b M
 /// -d O` would transform your history like this (because `L` and `M` are on the
-/// same "branch", relative to the destination):
+/// same "bookmark", relative to the destination):
 ///
 /// ```text
 /// O           N'
@@ -134,10 +134,10 @@ use crate::ui::Ui;
 /// commit. This is true in general; it is not specific to this command.
 #[derive(clap::Args, Clone, Debug)]
 #[command(verbatim_doc_comment)]
-#[command(group(ArgGroup::new("to_rebase").args(&["branch", "source", "revisions"])))]
+#[command(group(ArgGroup::new("to_rebase").args(&["bookmark", "source", "revisions"])))]
 #[command(group(ArgGroup::new("target").args(&["destination", "insert_after", "insert_before"]).multiple(true).required(true)))]
 pub(crate) struct RebaseArgs {
-    /// Rebase the whole branch relative to destination's ancestors (can be
+    /// Rebase the whole bookmark relative to destination's ancestors (can be
     /// repeated)
     ///
     /// `jj rebase -b=br -d=dst` is equivalent to `jj rebase '-s=roots(dst..br)'
@@ -145,7 +145,7 @@ pub(crate) struct RebaseArgs {
     ///
     /// If none of `-b`, `-s`, or `-r` is provided, then the default is `-b @`.
     #[arg(long, short)]
-    branch: Vec<RevisionArg>,
+    bookmark: Vec<RevisionArg>,
 
     /// Rebase specified revision(s) together with their trees of descendants
     /// (can be repeated)
@@ -180,7 +180,7 @@ pub(crate) struct RebaseArgs {
         visible_alias = "after",
         conflicts_with = "destination",
         conflicts_with = "source",
-        conflicts_with = "branch"
+        conflicts_with = "bookmark"
     )]
     insert_after: Vec<RevisionArg>,
     /// The revision(s) to insert before (can be repeated to create a merge
@@ -193,7 +193,7 @@ pub(crate) struct RebaseArgs {
         visible_alias = "before",
         conflicts_with = "destination",
         conflicts_with = "source",
-        conflicts_with = "branch"
+        conflicts_with = "bookmark"
     )]
     insert_before: Vec<RevisionArg>,
 
@@ -314,41 +314,41 @@ pub(crate) fn cmd_rebase(
             .resolve_some_revsets_default_single(&args.destination)?
             .into_iter()
             .collect_vec();
-        let branch_commits = if args.branch.is_empty() {
+        let bookmark_commits = if args.bookmark.is_empty() {
             IndexSet::from([workspace_command.resolve_single_rev(&RevisionArg::AT)?])
         } else {
-            workspace_command.resolve_some_revsets_default_single(&args.branch)?
+            workspace_command.resolve_some_revsets_default_single(&args.bookmark)?
         };
-        rebase_branch(
+        rebase_bookmark(
             ui,
             command.settings(),
             &mut workspace_command,
             new_parents,
-            &branch_commits,
+            &bookmark_commits,
             rebase_options,
         )?;
     }
     Ok(())
 }
 
-fn rebase_branch(
+fn rebase_bookmark(
     ui: &mut Ui,
     settings: &UserSettings,
     workspace_command: &mut WorkspaceCommandHelper,
     new_parents: Vec<Commit>,
-    branch_commits: &IndexSet<Commit>,
+    bookmark_commits: &IndexSet<Commit>,
     rebase_options: RebaseOptions,
 ) -> Result<(), CommandError> {
     let parent_ids = new_parents
         .iter()
         .map(|commit| commit.id().clone())
         .collect_vec();
-    let branch_commit_ids = branch_commits
+    let bookmark_commit_ids = bookmark_commits
         .iter()
         .map(|commit| commit.id().clone())
         .collect_vec();
     let roots_expression = RevsetExpression::commits(parent_ids)
-        .range(&RevsetExpression::commits(branch_commit_ids))
+        .range(&RevsetExpression::commits(bookmark_commit_ids))
         .roots();
     let root_commits: IndexSet<_> = roots_expression
         .evaluate_programmatic(workspace_command.repo().as_ref())

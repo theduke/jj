@@ -45,7 +45,7 @@ fn init_git_repo_with_opts(
     .unwrap();
     git_repo
         .commit(
-            Some("refs/heads/my-branch"),
+            Some("refs/heads/my-bookmark"),
             &git_signature,
             &git_signature,
             "My commit message",
@@ -54,12 +54,12 @@ fn init_git_repo_with_opts(
         )
         .unwrap();
     drop(git_tree);
-    git_repo.set_head("refs/heads/my-branch").unwrap();
+    git_repo.set_head("refs/heads/my-bookmark").unwrap();
     git_repo
 }
 
-fn get_branch_output(test_env: &TestEnvironment, repo_path: &Path) -> String {
-    test_env.jj_cmd_success(repo_path, &["branch", "list", "--all-remotes"])
+fn get_bookmark_output(test_env: &TestEnvironment, repo_path: &Path) -> String {
+    test_env.jj_cmd_success(repo_path, &["bookmark", "list", "--all-remotes"])
 }
 
 fn read_git_target(workspace_root: &Path) -> String {
@@ -113,7 +113,7 @@ fn test_init_git_external(bare: bool) {
         insta::assert_snapshot!(stderr, @r###"
         Done importing changes from the underlying Git repo.
         Working copy now at: sqpuoqvx f6950fc1 (empty) (no description set)
-        Parent commit      : mwrttmos 8d698d4a my-branch | My commit message
+        Parent commit      : mwrttmos 8d698d4a my-bookmark | My commit message
         Added 1 files, modified 0 files, removed 0 files
         Warning: `--git` and `--git-repo` are deprecated.
         Use `jj git init` instead
@@ -141,7 +141,7 @@ fn test_init_git_external(bare: bool) {
     let stdout = test_env.jj_cmd_success(&repo_path, &["log", "-r", "@-"]);
     insta::allow_duplicates! {
         insta::assert_snapshot!(stdout, @r###"
-        ○  mwrttmos git.user@example.com 1970-01-01 11:02:03 my-branch HEAD@git 8d698d4a
+        ○  mwrttmos git.user@example.com 1970-01-01 11:02:03 my-bookmark HEAD@git 8d698d4a
         │  My commit message
         ~
         "###);
@@ -209,7 +209,7 @@ fn test_init_git_colocated() {
     // Check that the Git repo's HEAD got checked out
     let stdout = test_env.jj_cmd_success(&repo_path, &["log", "-r", "@-"]);
     insta::assert_snapshot!(stdout, @r###"
-    ○  mwrttmos git.user@example.com 1970-01-01 11:02:03 my-branch HEAD@git 8d698d4a
+    ○  mwrttmos git.user@example.com 1970-01-01 11:02:03 my-bookmark HEAD@git 8d698d4a
     │  My commit message
     ~
     "###);
@@ -248,7 +248,7 @@ fn test_init_git_colocated_gitlink() {
     // Check that the Git repo's HEAD got checked out
     let stdout = test_env.jj_cmd_success(&workspace_root, &["log", "-r", "@-"]);
     insta::assert_snapshot!(stdout, @r###"
-    ○  mwrttmos git.user@example.com 1970-01-01 11:02:03 my-branch HEAD@git 8d698d4a
+    ○  mwrttmos git.user@example.com 1970-01-01 11:02:03 my-bookmark HEAD@git 8d698d4a
     │  My commit message
     ~
     "###);
@@ -286,7 +286,7 @@ fn test_init_git_colocated_symlink_directory() {
     // Check that the Git repo's HEAD got checked out
     let stdout = test_env.jj_cmd_success(&workspace_root, &["log", "-r", "@-"]);
     insta::assert_snapshot!(stdout, @r###"
-    ○  mwrttmos git.user@example.com 1970-01-01 11:02:03 my-branch HEAD@git 8d698d4a
+    ○  mwrttmos git.user@example.com 1970-01-01 11:02:03 my-bookmark HEAD@git 8d698d4a
     │  My commit message
     ~
     "###);
@@ -327,7 +327,7 @@ fn test_init_git_colocated_symlink_directory_without_bare_config() {
     // Check that the Git repo's HEAD got checked out
     let stdout = test_env.jj_cmd_success(&workspace_root, &["log", "-r", "@-"]);
     insta::assert_snapshot!(stdout, @r###"
-    ○  mwrttmos git.user@example.com 1970-01-01 11:02:03 my-branch HEAD@git 8d698d4a
+    ○  mwrttmos git.user@example.com 1970-01-01 11:02:03 my-bookmark HEAD@git 8d698d4a
     │  My commit message
     ~
     "###);
@@ -370,7 +370,7 @@ fn test_init_git_colocated_symlink_gitlink() {
     // Check that the Git repo's HEAD got checked out
     let stdout = test_env.jj_cmd_success(&workspace_root, &["log", "-r", "@-"]);
     insta::assert_snapshot!(stdout, @r###"
-    ○  mwrttmos git.user@example.com 1970-01-01 11:02:03 my-branch HEAD@git 8d698d4a
+    ○  mwrttmos git.user@example.com 1970-01-01 11:02:03 my-bookmark HEAD@git 8d698d4a
     │  My commit message
     ~
     "###);
@@ -388,14 +388,14 @@ fn test_init_git_colocated_symlink_gitlink() {
 #[test]
 fn test_init_git_colocated_imported_refs() {
     let test_env = TestEnvironment::default();
-    test_env.add_config("git.auto-local-branch = true");
+    test_env.add_config("git.auto-local-bookmark = true");
 
     // Set up remote refs
     test_env.jj_cmd_ok(test_env.env_root(), &["init", "remote", "--git"]);
     let remote_path = test_env.env_root().join("remote");
     test_env.jj_cmd_ok(
         &remote_path,
-        &["branch", "create", "local-remote", "remote-only"],
+        &["bookmark", "create", "local-remote", "remote-only"],
     );
     test_env.jj_cmd_ok(&remote_path, &["new"]);
     test_env.jj_cmd_ok(&remote_path, &["git", "export"]);
@@ -417,7 +417,7 @@ fn test_init_git_colocated_imported_refs() {
             .unwrap();
     };
 
-    // With git.auto-local-branch = true
+    // With git.auto-local-bookmark = true
     let local_path = test_env.env_root().join("local1");
     set_up_local_repo(&local_path);
     let (_stdout, stderr) = test_env.jj_cmd_ok(&local_path, &["init", "--git-repo=."]);
@@ -427,7 +427,7 @@ fn test_init_git_colocated_imported_refs() {
     Use `jj git init` instead
     Initialized repo in "."
     "###);
-    insta::assert_snapshot!(get_branch_output(&test_env, &local_path), @r###"
+    insta::assert_snapshot!(get_bookmark_output(&test_env, &local_path), @r###"
     local-remote: vvkvtnvv 230dd059 (empty) (no description set)
       @git: vvkvtnvv 230dd059 (empty) (no description set)
       @origin: vvkvtnvv 230dd059 (empty) (no description set)
@@ -436,21 +436,21 @@ fn test_init_git_colocated_imported_refs() {
       @origin: vvkvtnvv 230dd059 (empty) (no description set)
     "###);
 
-    // With git.auto-local-branch = false
-    test_env.add_config("git.auto-local-branch = false");
+    // With git.auto-local-bookmark = false
+    test_env.add_config("git.auto-local-bookmark = false");
     let local_path = test_env.env_root().join("local2");
     set_up_local_repo(&local_path);
     let (_stdout, stderr) = test_env.jj_cmd_ok(&local_path, &["init", "--git-repo=."]);
     insta::assert_snapshot!(stderr, @r###"
     Done importing changes from the underlying Git repo.
-    Hint: The following remote branches aren't associated with the existing local branches:
+    Hint: The following remote bookmarkes aren't associated with the existing local bookmarkes:
       local-remote@origin
-    Hint: Run `jj branch track local-remote@origin` to keep local branches updated on future pulls.
+    Hint: Run `jj bookmark track local-remote@origin` to keep local bookmarkes updated on future pulls.
     Warning: `--git` and `--git-repo` are deprecated.
     Use `jj git init` instead
     Initialized repo in "."
     "###);
-    insta::assert_snapshot!(get_branch_output(&test_env, &local_path), @r###"
+    insta::assert_snapshot!(get_bookmark_output(&test_env, &local_path), @r###"
     local-remote: vvkvtnvv 230dd059 (empty) (no description set)
       @git: vvkvtnvv 230dd059 (empty) (no description set)
     local-remote@origin: vvkvtnvv 230dd059 (empty) (no description set)

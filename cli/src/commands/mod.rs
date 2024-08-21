@@ -16,7 +16,7 @@ mod abandon;
 mod backout;
 #[cfg(feature = "bench")]
 mod bench;
-mod branch;
+mod bookmark;
 mod checkout;
 mod commit;
 mod config;
@@ -78,7 +78,7 @@ enum Command {
     #[command(subcommand)]
     Bench(bench::BenchCommand),
     #[command(subcommand)]
-    Branch(branch::BranchCommand),
+    Branch(bookmark::BranchCommand),
     #[command(alias = "print", hide = true)]
     Cat(file::show::FileShowArgs),
     #[command(hide = true)]
@@ -106,7 +106,7 @@ enum Command {
     Init(init::InitArgs),
     Interdiff(interdiff::InterdiffArgs),
     Log(log::LogArgs),
-    /// Merge work from multiple branches (DEPRECATED, use `jj new`)
+    /// Merge work from multiple bookmarkes (DEPRECATED, use `jj new`)
     ///
     /// Unlike most other VCSs, `jj merge` does not implicitly include the
     /// working copy revision's parent as one of the parents of the merge;
@@ -177,7 +177,7 @@ pub fn run_command(ui: &mut Ui, command_helper: &CommandHelper) -> Result<(), Co
         Command::Backout(args) => backout::cmd_backout(ui, command_helper, args),
         #[cfg(feature = "bench")]
         Command::Bench(args) => bench::cmd_bench(ui, command_helper, args),
-        Command::Branch(args) => branch::cmd_branch(ui, command_helper, args),
+        Command::Branch(args) => bookmark::cmd_bookmark(ui, command_helper, args),
         Command::Cat(args) => file::show::deprecated_cmd_cat(ui, command_helper, args),
         Command::Checkout(args) => checkout::cmd_checkout(ui, command_helper, args),
         Command::Chmod(args) => file::chmod::deprecated_cmd_chmod(ui, command_helper, args),

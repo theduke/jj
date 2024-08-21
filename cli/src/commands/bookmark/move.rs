@@ -18,7 +18,7 @@ use jj_lib::object_id::ObjectId as _;
 use jj_lib::op_store::RefTarget;
 use jj_lib::str_util::StringPattern;
 
-use super::find_branches_with;
+use super::find_bookmarkes_with;
 use super::is_fast_forward;
 use crate::cli_util::CommandHelper;
 use crate::cli_util::RevisionArg;
@@ -26,51 +26,52 @@ use crate::command_error::user_error_with_hint;
 use crate::command_error::CommandError;
 use crate::ui::Ui;
 
-/// Move existing branches to target revision
+/// Move existing bookmarkes to target revision
 ///
-/// If branch names are given, the specified branches will be updated to point
-/// to the target revision.
+/// If bookmark names are given, the specified bookmarkes will be updated to
+/// point to the target revision.
 ///
-/// If `--from` options are given, branches currently pointing to the specified
-/// revisions will be updated. The branches can also be filtered by names.
+/// If `--from` options are given, bookmarkes currently pointing to the
+/// specified revisions will be updated. The bookmarkes can also be filtered by
+/// names.
 ///
-/// Example: pull up the nearest branches to the working-copy parent
+/// Example: pull up the nearest bookmarkes to the working-copy parent
 ///
-/// $ jj branch move --from 'heads(::@- & branches())' --to @-
+/// $ jj bookmark move --from 'heads(::@- & bookmarkes())' --to @-
 #[derive(clap::Args, Clone, Debug)]
 #[command(group(clap::ArgGroup::new("source").multiple(true).required(true)))]
-pub struct BranchMoveArgs {
-    /// Move branches from the given revisions
+pub struct BookmarkMoveArgs {
+    /// Move bookmarkes from the given revisions
     #[arg(long, group = "source", value_name = "REVISIONS")]
     from: Vec<RevisionArg>,
 
-    /// Move branches to this revision
+    /// Move bookmarkes to this revision
     #[arg(long, default_value = "@", value_name = "REVISION")]
     to: RevisionArg,
 
-    /// Allow moving branches backwards or sideways
+    /// Allow moving bookmarkes backwards or sideways
     #[arg(long, short = 'B')]
     allow_backwards: bool,
 
-    /// Move branches matching the given name patterns
+    /// Move bookmarkes matching the given name patterns
     ///
     /// By default, the specified name matches exactly. Use `glob:` prefix to
-    /// select branches by wildcard pattern. For details, see
+    /// select bookmarkes by wildcard pattern. For details, see
     /// https://github.com/martinvonz/jj/blob/main/docs/revsets.md#string-patterns.
     #[arg(group = "source", value_parser = StringPattern::parse)]
     names: Vec<StringPattern>,
 }
 
-pub fn cmd_branch_move(
+pub fn cmd_bookmark_move(
     ui: &mut Ui,
     command: &CommandHelper,
-    args: &BranchMoveArgs,
+    args: &BookmarkMoveArgs,
 ) -> Result<(), CommandError> {
     let mut workspace_command = command.workspace_helper(ui)?;
     let repo = workspace_command.repo().clone();
 
     let target_commit = workspace_command.resolve_single_rev(&args.to)?;
-    let matched_branches = {
+    let matched_bookmarkes = {
         let is_source_commit = if !args.from.is_empty() {
             workspace_command
                 .parse_union_revsets(&args.from)?
@@ -79,63 +80,67 @@ pub fn cmd_branch_move(
         } else {
             Box::new(|_: &CommitId| true)
         };
-        let mut branches = if !args.names.is_empty() {
-            find_branches_with(&args.names, |pattern| {
+        let mut bookmarkes = if !args.names.is_empty() {
+            find_bookmarkes_with(&args.names, |pattern| {
                 repo.view()
-                    .local_branches_matching(pattern)
+                    .local_bookmarkes_matching(pattern)
                     .filter(|(_, target)| target.added_ids().any(&is_source_commit))
             })?
         } else {
             repo.view()
-                .local_branches()
+                .local_bookmarkes()
                 .filter(|(_, target)| target.added_ids().any(&is_source_commit))
                 .collect()
         };
         // Noop matches aren't error, but should be excluded from stats.
-        branches.retain(|(_, old_target)| old_target.as_normal() != Some(target_commit.id()));
-        branches
+        bookmarkes.retain(|(_, old_target)| old_target.as_normal() != Some(target_commit.id()));
+        bookmarkes
     };
 
-    if matched_branches.is_empty() {
-        writeln!(ui.status(), "No branches to update.")?;
+    if matched_bookmarkes.is_empty() {
+        writeln!(ui.status(), "No bookmarkes to update.")?;
         return Ok(());
     }
 
     if !args.allow_backwards {
-        if let Some((name, _)) = matched_branches
+        if let Some((name, _)) = matched_bookmarkes
             .iter()
             .find(|(_, old_target)| !is_fast_forward(repo.as_ref(), old_target, target_commit.id()))
         {
             return Err(user_error_with_hint(
-                format!("Refusing to move branch backwards or sideways: {name}"),
+                format!("Refusing to move bookmark backwards or sideways: {name}"),
                 "Use --allow-backwards to allow it.",
             ));
         }
     }
 
     let mut tx = workspace_command.start_transaction();
-    for (name, _) in &matched_branches {
+    for (name, _) in &matched_bookmarkes {
         tx.mut_repo()
-            .set_local_branch_target(name, RefTarget::normal(target_commit.id().clone()));
+            .set_local_bookmark_target(name, RefTarget::normal(target_commit.id().clone()));
     }
 
     if let Some(mut formatter) = ui.status_formatter() {
-        write!(formatter, "Moved {} branches to ", matched_branches.len())?;
+        write!(
+            formatter,
+            "Moved {} bookmarkes to ",
+            matched_bookmarkes.len()
+        )?;
         tx.write_commit_summary(formatter.as_mut(), &target_commit)?;
         writeln!(formatter)?;
     }
-    if matched_branches.len() > 1 && args.names.is_empty() {
+    if matched_bookmarkes.len() > 1 && args.names.is_empty() {
         writeln!(
             ui.hint_default(),
-            "Specify branch by name to update just one of the branches."
+            "Specify bookmark by name to update just one of the bookmarkes."
         )?;
     }
 
     tx.finish(
         ui,
         format!(
-            "point branch {names} to commit {id}",
-            names = matched_branches.iter().map(|(name, _)| name).join(", "),
+            "point bookmark {names} to commit {id}",
+            names = matched_bookmarkes.iter().map(|(name, _)| name).join(", "),
             id = target_commit.id().hex()
         ),
     )?;

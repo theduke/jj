@@ -929,7 +929,7 @@ impl MutableRepo {
     /// Record a commit as being rewritten into multiple other commits in this
     /// transaction.
     ///
-    /// A later call to `rebase_descendants()` will update branches pointing to
+    /// A later call to `rebase_descendants()` will update bookmarks pointing to
     /// `old_id` be conflicted and pointing to all pf `new_ids`. Working copies
     /// pointing to `old_id` will be updated to point to the first commit in
     /// `new_ids``. Descendants of `old_id` will be left alone.
@@ -949,10 +949,10 @@ impl MutableRepo {
     ///
     /// This record is used by `rebase_descendants` to know which commits have
     /// children that need to be rebased, and where to rebase the children (as
-    /// well as branches) to.
+    /// well as bookmarks) to.
     ///
     /// The `rebase_descendants` logic will rebase the descendants of `old_id`
-    /// to become the descendants of parent(s) of `old_id`. Any branches at
+    /// to become the descendants of parent(s) of `old_id`. Any bookmarks at
     /// `old_id` would be moved to the parent(s) of `old_id` as well.
     // TODO: Propagate errors from commit lookup or take a Commit as argument.
     pub fn record_abandoned_commit(&mut self, old_id: CommitId) {
@@ -1047,7 +1047,7 @@ impl MutableRepo {
         }
     }
 
-    /// Updates branches, working copies, and anonymous heads after rewriting
+    /// Updates bookmarks, working copies, and anonymous heads after rewriting
     /// and/or abandoning commits.
     pub fn update_rewritten_references(&mut self, settings: &UserSettings) -> BackendResult<()> {
         self.update_all_references(settings)?;
@@ -1084,27 +1084,27 @@ impl MutableRepo {
             abandoned_old_commit,
         )?;
 
-        // Build a map from commit to branches pointing to it, so we don't need to scan
-        // all branches each time we rebase a commit.
-        // TODO: We no longer need to do this now that we update branches for all
+        // Build a map from commit to bookmarks pointing to it, so we don't need to scan
+        // all bookmarks each time we rebase a commit.
+        // TODO: We no longer need to do this now that we update bookmarks for all
         // commits at once.
-        let mut branches: HashMap<_, HashSet<_>> = HashMap::new();
-        for (branch_name, target) in self.view().local_branches() {
+        let mut bookmarks: HashMap<_, HashSet<_>> = HashMap::new();
+        for (bookmark_name, target) in self.view().local_bookmarks() {
             for commit in target.added_ids() {
-                branches
+                bookmarks
                     .entry(commit.clone())
                     .or_default()
-                    .insert(branch_name.to_owned());
+                    .insert(bookmark_name.to_owned());
             }
         }
 
-        if let Some(branch_names) = branches.get(&old_commit_id).cloned() {
-            let mut branch_updates = vec![];
-            for branch_name in &branch_names {
-                let local_target = self.get_local_branch(branch_name);
+        if let Some(bookmark_names) = bookmarks.get(&old_commit_id).cloned() {
+            let mut bookmark_updates = vec![];
+            for bookmark_name in &bookmark_names {
+                let local_target = self.get_local_bookmark(bookmark_name);
                 for old_add in local_target.added_ids() {
                     if *old_add == old_commit_id {
-                        branch_updates.push(branch_name.clone());
+                        bookmark_updates.push(bookmark_name.clone());
                     }
                 }
             }
@@ -1115,8 +1115,8 @@ impl MutableRepo {
                 std::iter::repeat(old_commit_id).take(new_commit_ids.len() - 1),
                 new_commit_ids,
             );
-            for branch_name in &branch_updates {
-                self.merge_local_branch(branch_name, &old_target, &new_target);
+            for bookmark_name in &bookmark_updates {
+                self.merge_local_bookmark(bookmark_name, &old_target, &new_target);
             }
         }
 
@@ -1284,7 +1284,7 @@ impl MutableRepo {
         Ok(Some(rebaser))
     }
 
-    // TODO(ilyagr): Either document that this also moves branches (rename the
+    // TODO(ilyagr): Either document that this also moves bookmarks (rename the
     // function and the related functions?) or change things so that this only
     // rebases descendants.
     pub fn rebase_descendants_with_options(
@@ -1311,7 +1311,7 @@ impl MutableRepo {
     /// key-value pair where the key is the abandoned commit and the value is
     /// **its parent**. One can tell this case apart since the change ids of the
     /// key and the value will not match. The parent will inherit the
-    /// descendants and the branches of the abandoned commit.
+    /// descendants and the bookmarks of the abandoned commit.
     // TODO: Rewrite this using `transform_descendants()`
     pub fn rebase_descendants_with_options_return_map(
         &mut self,
@@ -1405,7 +1405,7 @@ impl MutableRepo {
                 .filter(|&(ws_id, _)| ws_id != workspace_id)
                 .map(|(_, wc_id)| wc_id)
                 .chain(
-                    view.local_branches()
+                    view.local_bookmarks()
                         .flat_map(|(_, target)| target.added_ids()),
                 )
                 .any(|id| id == commit_id)
@@ -1426,7 +1426,7 @@ impl MutableRepo {
                 && self.view().heads().contains(wc_commit.id())
             {
                 // Abandon the working-copy commit we're leaving if it's
-                // discardable, not pointed by local branch or other working
+                // discardable, not pointed by local bookmark or other working
                 // copies, and a head commit.
                 self.record_abandoned_commit(wc_commit_id);
             }
@@ -1519,15 +1519,15 @@ impl MutableRepo {
         self.view.mark_dirty();
     }
 
-    pub fn get_local_branch(&self, name: &str) -> RefTarget {
-        self.view.with_ref(|v| v.get_local_branch(name).clone())
+    pub fn get_local_bookmark(&self, name: &str) -> RefTarget {
+        self.view.with_ref(|v| v.get_local_bookmark(name).clone())
     }
 
-    pub fn set_local_branch_target(&mut self, name: &str, target: RefTarget) {
-        self.view_mut().set_local_branch_target(name, target);
+    pub fn set_local_bookmark_target(&mut self, name: &str, target: RefTarget) {
+        self.view_mut().set_local_bookmark_target(name, target);
     }
 
-    pub fn merge_local_branch(
+    pub fn merge_local_bookmark(
         &mut self,
         name: &str,
         base_target: &RefTarget,
@@ -1535,22 +1535,22 @@ impl MutableRepo {
     ) {
         let view = self.view.get_mut();
         let index = self.index.as_index();
-        let self_target = view.get_local_branch(name);
+        let self_target = view.get_local_bookmark(name);
         let new_target = merge_ref_targets(index, self_target, base_target, other_target);
-        view.set_local_branch_target(name, new_target);
+        view.set_local_bookmark_target(name, new_target);
     }
 
-    pub fn get_remote_branch(&self, name: &str, remote_name: &str) -> RemoteRef {
+    pub fn get_remote_bookmark(&self, name: &str, remote_name: &str) -> RemoteRef {
         self.view
-            .with_ref(|v| v.get_remote_branch(name, remote_name).clone())
+            .with_ref(|v| v.get_remote_bookmark(name, remote_name).clone())
     }
 
-    pub fn set_remote_branch(&mut self, name: &str, remote_name: &str, remote_ref: RemoteRef) {
+    pub fn set_remote_bookmark(&mut self, name: &str, remote_name: &str, remote_ref: RemoteRef) {
         self.view_mut()
-            .set_remote_branch(name, remote_name, remote_ref);
+            .set_remote_bookmark(name, remote_name, remote_ref);
     }
 
-    fn merge_remote_branch(
+    fn merge_remote_bookmark(
         &mut self,
         name: &str,
         remote_name: &str,
@@ -1559,26 +1559,26 @@ impl MutableRepo {
     ) {
         let view = self.view.get_mut();
         let index = self.index.as_index();
-        let self_ref = view.get_remote_branch(name, remote_name);
+        let self_ref = view.get_remote_bookmark(name, remote_name);
         let new_ref = merge_remote_refs(index, self_ref, base_ref, other_ref);
-        view.set_remote_branch(name, remote_name, new_ref);
+        view.set_remote_bookmark(name, remote_name, new_ref);
     }
 
-    /// Merges the specified remote branch in to local branch, and starts
+    /// Merges the specified remote bookmark in to local bookmark, and starts
     /// tracking it.
-    pub fn track_remote_branch(&mut self, name: &str, remote_name: &str) {
-        let mut remote_ref = self.get_remote_branch(name, remote_name);
+    pub fn track_remote_bookmark(&mut self, name: &str, remote_name: &str) {
+        let mut remote_ref = self.get_remote_bookmark(name, remote_name);
         let base_target = remote_ref.tracking_target();
-        self.merge_local_branch(name, base_target, &remote_ref.target);
+        self.merge_local_bookmark(name, base_target, &remote_ref.target);
         remote_ref.state = RemoteRefState::Tracking;
-        self.set_remote_branch(name, remote_name, remote_ref);
+        self.set_remote_bookmark(name, remote_name, remote_ref);
     }
 
-    /// Stops tracking the specified remote branch.
-    pub fn untrack_remote_branch(&mut self, name: &str, remote_name: &str) {
-        let mut remote_ref = self.get_remote_branch(name, remote_name);
+    /// Stops tracking the specified remote bookmark.
+    pub fn untrack_remote_bookmark(&mut self, name: &str, remote_name: &str) {
+        let mut remote_ref = self.get_remote_bookmark(name, remote_name);
         remote_ref.state = RemoteRefState::New;
-        self.set_remote_branch(name, remote_name, remote_ref);
+        self.set_remote_bookmark(name, remote_name, remote_ref);
     }
 
     pub fn remove_remote(&mut self, remote_name: &str) {
@@ -1703,10 +1703,10 @@ impl MutableRepo {
             self.view_mut().add_head(added_head);
         }
 
-        let changed_local_branches =
-            diff_named_ref_targets(base.local_branches(), other.local_branches());
-        for (name, (base_target, other_target)) in changed_local_branches {
-            self.merge_local_branch(name, base_target, other_target);
+        let changed_local_bookmarks =
+            diff_named_ref_targets(base.local_bookmarks(), other.local_bookmarks());
+        for (name, (base_target, other_target)) in changed_local_bookmarks {
+            self.merge_local_bookmark(name, base_target, other_target);
         }
 
         let changed_tags = diff_named_ref_targets(base.tags(), other.tags());
@@ -1719,10 +1719,10 @@ impl MutableRepo {
             self.merge_git_ref(name, base_target, other_target);
         }
 
-        let changed_remote_branches =
-            diff_named_remote_refs(base.all_remote_branches(), other.all_remote_branches());
-        for ((name, remote_name), (base_ref, other_ref)) in changed_remote_branches {
-            self.merge_remote_branch(name, remote_name, base_ref, other_ref);
+        let changed_remote_bookmarks =
+            diff_named_remote_refs(base.all_remote_bookmarks(), other.all_remote_bookmarks());
+        for ((name, remote_name), (base_ref, other_ref)) in changed_remote_bookmarks {
+            self.merge_remote_bookmark(name, remote_name, base_ref, other_ref);
         }
 
         let new_git_head_target = merge_ref_targets(

@@ -14,7 +14,12 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   commit to commit. It now either follows the flags `--edit|--no-edit` or it
   gets the mode from `ui.movement.edit`.
 
+* `jj branch` has been renamed to `jj bookmark`, this does not affect the 
+  `[experimental-advance-branches]` option, to lessen the config churn.
+
 ### Deprecations
+
+* `jj branch` has been deprecated in favor of `jj bookmark`.
 
 ### New features
 

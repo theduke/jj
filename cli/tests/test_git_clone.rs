@@ -46,7 +46,7 @@ fn set_up_non_empty_git_repo(git_repo: &git2::Repository) {
 #[test]
 fn test_git_clone() {
     let test_env = TestEnvironment::default();
-    test_env.add_config("git.auto-local-branch = true");
+    test_env.add_config("git.auto-local-bookmark = true");
     let git_repo_path = test_env.env_root().join("source");
     let git_repo = git2::Repository::init(git_repo_path).unwrap();
 
@@ -67,7 +67,7 @@ fn test_git_clone() {
     insta::assert_snapshot!(stdout, @"");
     insta::assert_snapshot!(stderr, @r###"
     Fetching into new repo in "$TEST_ENV/clone"
-    branch: main@origin [new] tracked
+    bookmark: main@origin [new] tracked
     Setting the revset alias "trunk()" to "main@origin"
     Working copy now at: uuqppmxq 1f0b881a (empty) (no description set)
     Parent commit      : mzyxwzks 9f01a0e0 main | message
@@ -149,7 +149,7 @@ fn test_git_clone() {
     insta::assert_snapshot!(stdout, @"");
     insta::assert_snapshot!(stderr, @r###"
     Fetching into new repo in "$TEST_ENV/nested/path/to/repo"
-    branch: main@origin [new] tracked
+    bookmark: main@origin [new] tracked
     Setting the revset alias "trunk()" to "main@origin"
     Working copy now at: uuzqqzqu df8acbac (empty) (no description set)
     Parent commit      : mzyxwzks 9f01a0e0 main | message
@@ -160,7 +160,7 @@ fn test_git_clone() {
 #[test]
 fn test_git_clone_colocate() {
     let test_env = TestEnvironment::default();
-    test_env.add_config("git.auto-local-branch = true");
+    test_env.add_config("git.auto-local-bookmark = true");
     let git_repo_path = test_env.env_root().join("source");
     let git_repo = git2::Repository::init(git_repo_path).unwrap();
 
@@ -194,7 +194,7 @@ fn test_git_clone_colocate() {
     insta::assert_snapshot!(stdout, @"");
     insta::assert_snapshot!(stderr, @r###"
     Fetching into new repo in "$TEST_ENV/clone"
-    branch: main@origin [new] tracked
+    bookmark: main@origin [new] tracked
     Setting the revset alias "trunk()" to "main@origin"
     Working copy now at: uuqppmxq 1f0b881a (empty) (no description set)
     Parent commit      : mzyxwzks 9f01a0e0 main | message
@@ -234,9 +234,9 @@ fn test_git_clone_colocate() {
     Status(IGNORED) .jj/working_copy/
     "###);
 
-    // The old default branch "master" shouldn't exist.
+    // The old default bookmark "master" shouldn't exist.
     insta::assert_snapshot!(
-        get_branch_output(&test_env, &test_env.env_root().join("clone")), @r###"
+        get_bookmark_output(&test_env, &test_env.env_root().join("clone")), @r###"
     main: mzyxwzks 9f01a0e0 message
       @git: mzyxwzks 9f01a0e0 message
       @origin: mzyxwzks 9f01a0e0 message
@@ -342,7 +342,7 @@ fn test_git_clone_colocate() {
     insta::assert_snapshot!(stdout, @"");
     insta::assert_snapshot!(stderr, @r###"
     Fetching into new repo in "$TEST_ENV/nested/path/to/repo"
-    branch: main@origin [new] tracked
+    bookmark: main@origin [new] tracked
     Setting the revset alias "trunk()" to "main@origin"
     Working copy now at: vzqnnsmr 9407107f (empty) (no description set)
     Parent commit      : mzyxwzks 9f01a0e0 main | message
@@ -351,12 +351,12 @@ fn test_git_clone_colocate() {
 }
 
 #[test]
-fn test_git_clone_remote_default_branch() {
+fn test_git_clone_remote_default_bookmark() {
     let test_env = TestEnvironment::default();
     let git_repo_path = test_env.env_root().join("source");
     let git_repo = git2::Repository::init(git_repo_path).unwrap();
     set_up_non_empty_git_repo(&git_repo);
-    // Create non-default branch in remote
+    // Create non-default bookmark in remote
     let oid = git_repo
         .find_reference("refs/heads/main")
         .unwrap()
@@ -366,28 +366,28 @@ fn test_git_clone_remote_default_branch() {
         .reference("refs/heads/feature1", oid, false, "")
         .unwrap();
 
-    // All fetched branches will be imported if auto-local-branch is on
-    test_env.add_config("git.auto-local-branch = true");
+    // All fetched bookmarkes will be imported if auto-local-bookmark is on
+    test_env.add_config("git.auto-local-bookmark = true");
     let (_stdout, stderr) =
         test_env.jj_cmd_ok(test_env.env_root(), &["git", "clone", "source", "clone1"]);
     insta::assert_snapshot!(stderr, @r###"
     Fetching into new repo in "$TEST_ENV/clone1"
-    branch: feature1@origin [new] tracked
-    branch: main@origin     [new] tracked
+    bookmark: feature1@origin [new] tracked
+    bookmark: main@origin     [new] tracked
     Setting the revset alias "trunk()" to "main@origin"
     Working copy now at: sqpuoqvx cad212e1 (empty) (no description set)
     Parent commit      : mzyxwzks 9f01a0e0 feature1 main | message
     Added 1 files, modified 0 files, removed 0 files
     "###);
     insta::assert_snapshot!(
-        get_branch_output(&test_env, &test_env.env_root().join("clone1")), @r###"
+        get_bookmark_output(&test_env, &test_env.env_root().join("clone1")), @r###"
     feature1: mzyxwzks 9f01a0e0 message
       @origin: mzyxwzks 9f01a0e0 message
     main: mzyxwzks 9f01a0e0 message
       @origin: mzyxwzks 9f01a0e0 message
     "###);
 
-    // "trunk()" alias should be set to default branch "main"
+    // "trunk()" alias should be set to default bookmark "main"
     let stdout = test_env.jj_cmd_success(
         &test_env.env_root().join("clone1"),
         &["config", "list", "--repo", "revset-aliases.'trunk()'"],
@@ -396,47 +396,47 @@ fn test_git_clone_remote_default_branch() {
     revset-aliases.'trunk()' = "main@origin"
     "###);
 
-    // Only the default branch will be imported if auto-local-branch is off
-    test_env.add_config("git.auto-local-branch = false");
+    // Only the default bookmark will be imported if auto-local-bookmark is off
+    test_env.add_config("git.auto-local-bookmark = false");
     let (_stdout, stderr) =
         test_env.jj_cmd_ok(test_env.env_root(), &["git", "clone", "source", "clone2"]);
     insta::assert_snapshot!(stderr, @r###"
     Fetching into new repo in "$TEST_ENV/clone2"
-    branch: feature1@origin [new] untracked
-    branch: main@origin     [new] untracked
+    bookmark: feature1@origin [new] untracked
+    bookmark: main@origin     [new] untracked
     Setting the revset alias "trunk()" to "main@origin"
     Working copy now at: rzvqmyuk cc8a5041 (empty) (no description set)
     Parent commit      : mzyxwzks 9f01a0e0 feature1@origin main | message
     Added 1 files, modified 0 files, removed 0 files
     "###);
     insta::assert_snapshot!(
-        get_branch_output(&test_env, &test_env.env_root().join("clone2")), @r###"
+        get_bookmark_output(&test_env, &test_env.env_root().join("clone2")), @r###"
     feature1@origin: mzyxwzks 9f01a0e0 message
     main: mzyxwzks 9f01a0e0 message
       @origin: mzyxwzks 9f01a0e0 message
     "###);
 
-    // Change the default branch in remote
+    // Change the default bookmark in remote
     git_repo.set_head("refs/heads/feature1").unwrap();
     let (_stdout, stderr) =
         test_env.jj_cmd_ok(test_env.env_root(), &["git", "clone", "source", "clone3"]);
     insta::assert_snapshot!(stderr, @r###"
     Fetching into new repo in "$TEST_ENV/clone3"
-    branch: feature1@origin [new] untracked
-    branch: main@origin     [new] untracked
+    bookmark: feature1@origin [new] untracked
+    bookmark: main@origin     [new] untracked
     Setting the revset alias "trunk()" to "feature1@origin"
     Working copy now at: nppvrztz b8a8a17b (empty) (no description set)
     Parent commit      : mzyxwzks 9f01a0e0 feature1 main@origin | message
     Added 1 files, modified 0 files, removed 0 files
     "###);
     insta::assert_snapshot!(
-        get_branch_output(&test_env, &test_env.env_root().join("clone2")), @r###"
+        get_bookmark_output(&test_env, &test_env.env_root().join("clone2")), @r###"
     feature1@origin: mzyxwzks 9f01a0e0 message
     main: mzyxwzks 9f01a0e0 message
       @origin: mzyxwzks 9f01a0e0 message
     "###);
 
-    // "trunk()" alias should be set to new default branch "feature1"
+    // "trunk()" alias should be set to new default bookmark "feature1"
     let stdout = test_env.jj_cmd_success(
         &test_env.env_root().join("clone3"),
         &["config", "list", "--repo", "revset-aliases.'trunk()'"],
@@ -460,7 +460,7 @@ fn test_git_clone_ignore_working_copy() {
     );
     insta::assert_snapshot!(stderr, @r###"
     Fetching into new repo in "$TEST_ENV/clone"
-    branch: main@origin [new] untracked
+    bookmark: main@origin [new] untracked
     Setting the revset alias "trunk()" to "main@origin"
     "###);
     let clone_path = test_env.env_root().join("clone");
@@ -498,6 +498,6 @@ fn test_git_clone_at_operation() {
     "###);
 }
 
-fn get_branch_output(test_env: &TestEnvironment, repo_path: &Path) -> String {
-    test_env.jj_cmd_success(repo_path, &["branch", "list", "--all-remotes"])
+fn get_bookmark_output(test_env: &TestEnvironment, repo_path: &Path) -> String {
+    test_env.jj_cmd_success(repo_path, &["bookmark", "list", "--all-remotes"])
 }

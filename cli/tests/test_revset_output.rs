@@ -197,13 +197,13 @@ fn test_bad_function_call() {
     4: Invalid component ".." in repo-relative path "../out"
     "###);
 
-    let stderr = test_env.jj_cmd_failure(&repo_path, &["log", "-r", "branches(bad:pattern)"]);
+    let stderr = test_env.jj_cmd_failure(&repo_path, &["log", "-r", "bookmarkes(bad:pattern)"]);
     insta::assert_snapshot!(stderr, @r###"
     Error: Failed to parse revset: Invalid string pattern
     Caused by:
     1:  --> 1:10
       |
-    1 | branches(bad:pattern)
+    1 | bookmarkes(bad:pattern)
       |          ^---------^
       |
       = Invalid string pattern
@@ -211,13 +211,13 @@ fn test_bad_function_call() {
     Hint: Try prefixing with one of `exact:`, `glob:`, `regex:`, or `substring:`
     "###);
 
-    let stderr = test_env.jj_cmd_failure(&repo_path, &["log", "-r", "branches(regex:'(')"]);
+    let stderr = test_env.jj_cmd_failure(&repo_path, &["log", "-r", "bookmarkes(regex:'(')"]);
     insta::assert_snapshot!(stderr, @r###"
     Error: Failed to parse revset: Invalid string pattern
     Caused by:
     1:  --> 1:10
       |
-    1 | branches(regex:'(')
+    1 | bookmarkes(regex:'(')
       |          ^-------^
       |
       = Invalid string pattern
@@ -240,47 +240,47 @@ fn test_bad_function_call() {
 
     let stderr = test_env.jj_cmd_failure(
         &repo_path,
-        &["log", "-r", "remote_branches(a, b, remote=c)"],
+        &["log", "-r", "remote_bookmarkes(a, b, remote=c)"],
     );
     insta::assert_snapshot!(stderr, @r###"
-    Error: Failed to parse revset: Function "remote_branches": Got multiple values for keyword "remote"
+    Error: Failed to parse revset: Function "remote_bookmarkes": Got multiple values for keyword "remote"
     Caused by:  --> 1:23
       |
-    1 | remote_branches(a, b, remote=c)
+    1 | remote_bookmarkes(a, b, remote=c)
       |                       ^------^
       |
-      = Function "remote_branches": Got multiple values for keyword "remote"
+      = Function "remote_bookmarkes": Got multiple values for keyword "remote"
     "###);
 
     let stderr =
-        test_env.jj_cmd_failure(&repo_path, &["log", "-r", "remote_branches(remote=a, b)"]);
+        test_env.jj_cmd_failure(&repo_path, &["log", "-r", "remote_bookmarkes(remote=a, b)"]);
     insta::assert_snapshot!(stderr, @r###"
-    Error: Failed to parse revset: Function "remote_branches": Positional argument follows keyword argument
+    Error: Failed to parse revset: Function "remote_bookmarkes": Positional argument follows keyword argument
     Caused by:  --> 1:27
       |
-    1 | remote_branches(remote=a, b)
+    1 | remote_bookmarkes(remote=a, b)
       |                           ^
       |
-      = Function "remote_branches": Positional argument follows keyword argument
+      = Function "remote_bookmarkes": Positional argument follows keyword argument
     "###);
 
-    let stderr = test_env.jj_cmd_failure(&repo_path, &["log", "-r", "remote_branches(=foo)"]);
+    let stderr = test_env.jj_cmd_failure(&repo_path, &["log", "-r", "remote_bookmarkes(=foo)"]);
     insta::assert_snapshot!(stderr, @r###"
     Error: Failed to parse revset: Syntax error
     Caused by:  --> 1:17
       |
-    1 | remote_branches(=foo)
+    1 | remote_bookmarkes(=foo)
       |                 ^---
       |
       = expected <identifier> or <expression>
     "###);
 
-    let stderr = test_env.jj_cmd_failure(&repo_path, &["log", "-r", "remote_branches(remote=)"]);
+    let stderr = test_env.jj_cmd_failure(&repo_path, &["log", "-r", "remote_bookmarkes(remote=)"]);
     insta::assert_snapshot!(stderr, @r###"
     Error: Failed to parse revset: Syntax error
     Caused by:  --> 1:24
       |
-    1 | remote_branches(remote=)
+    1 | remote_bookmarkes(remote=)
       |                        ^---
       |
       = expected <expression>
@@ -297,23 +297,23 @@ fn test_function_name_hint() {
     test_env.add_config(
         r###"
     [revset-aliases]
-    'branches(x)' = 'x' # override builtin function
+    'bookmarkes(x)' = 'x' # override builtin function
     'my_author(x)' = 'author(x)' # similar name to builtin function
     'author_sym' = 'x' # not a function alias
-    'my_branches' = 'branch()' # typo in alias
+    'my_bookmarkes' = 'bookmark()' # typo in alias
     "###,
     );
 
-    // The suggestion "branches" shouldn't be duplicated
-    insta::assert_snapshot!(evaluate_err("branch()"), @r###"
-    Error: Failed to parse revset: Function "branch" doesn't exist
+    // The suggestion "bookmarkes" shouldn't be duplicated
+    insta::assert_snapshot!(evaluate_err("bookmark()"), @r###"
+    Error: Failed to parse revset: Function "bookmark" doesn't exist
     Caused by:  --> 1:1
       |
-    1 | branch()
+    1 | bookmark()
       | ^----^
       |
-      = Function "branch" doesn't exist
-    Hint: Did you mean "branches", "reachable"?
+      = Function "bookmark" doesn't exist
+    Hint: Did you mean "bookmarkes", "reachable"?
     "###);
 
     // Both builtin function and function alias should be suggested
@@ -328,22 +328,22 @@ fn test_function_name_hint() {
     Hint: Did you mean "author", "author_date", "my_author"?
     "###);
 
-    insta::assert_snapshot!(evaluate_err("my_branches"), @r###"
-    Error: Failed to parse revset: Alias "my_branches" cannot be expanded
+    insta::assert_snapshot!(evaluate_err("my_bookmarkes"), @r###"
+    Error: Failed to parse revset: Alias "my_bookmarkes" cannot be expanded
     Caused by:
     1:  --> 1:1
       |
-    1 | my_branches
+    1 | my_bookmarkes
       | ^---------^
       |
-      = Alias "my_branches" cannot be expanded
+      = Alias "my_bookmarkes" cannot be expanded
     2:  --> 1:1
       |
-    1 | branch()
+    1 | bookmark()
       | ^----^
       |
-      = Function "branch" doesn't exist
-    Hint: Did you mean "branches", "reachable"?
+      = Function "bookmark" doesn't exist
+    Hint: Did you mean "bookmarkes", "reachable"?
     "###);
 }
 
@@ -555,11 +555,11 @@ fn test_all_modifier() {
     "###);
 
     // Command that accepts only single revision
-    let (_stdout, stderr) = test_env.jj_cmd_ok(&repo_path, &["branch", "create", "-rall:@", "x"]);
+    let (_stdout, stderr) = test_env.jj_cmd_ok(&repo_path, &["bookmark", "create", "-rall:@", "x"]);
     insta::assert_snapshot!(stderr, @r###"
-    Created 1 branches pointing to qpvuntsm 230dd059 x | (empty) (no description set)
+    Created 1 bookmarkes pointing to qpvuntsm 230dd059 x | (empty) (no description set)
     "###);
-    let stderr = test_env.jj_cmd_failure(&repo_path, &["branch", "set", "-rall:all()", "x"]);
+    let stderr = test_env.jj_cmd_failure(&repo_path, &["bookmark", "set", "-rall:all()", "x"]);
     insta::assert_snapshot!(stderr, @r###"
     Error: Revset "all:all()" resolved to more than one revision
     Hint: The revset "all:all()" resolved to these revisions:

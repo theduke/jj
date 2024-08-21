@@ -112,7 +112,7 @@ To get started, see the tutorial at https://github.com/martinvonz/jj/blob/main/d
 
 * `abandon` — Abandon a revision
 * `backout` — Apply the reverse of a revision on top of another revision
-* `branch` — Manage branches
+* `branch` — Manage bookmarks
 * `commit` — Update the description and create a new change on top
 * `config` — Manage config options
 * `describe` — Update the change description or other metadata
@@ -228,9 +228,9 @@ Apply the reverse of a revision on top of another revision
 
 ## `jj branch`
 
-Manage branches
+Manage bookmarks
 
-For information about branches, see https://github.com/martinvonz/jj/blob/main/docs/branches.md.
+For information about bookmarks, see https://github.com/martinvonz/jj/blob/main/docs/bookmarks.md.
 
 **Usage:** `jj branch <COMMAND>`
 
@@ -239,12 +239,12 @@ For information about branches, see https://github.com/martinvonz/jj/blob/main/d
 * `create` — Create a new branch
 * `delete` — Delete an existing branch and propagate the deletion to remotes on the next push
 * `forget` — Forget everything about a branch, including its local and remote targets
-* `list` — List branches and their targets
-* `move` — Move existing branches to target revision
+* `list` — List bookmarks and their targets
+* `move` — Move existing bookmarks to target revision
 * `rename` — Rename `old` branch name to `new` branch name
 * `set` — Create or update a branch to point to a certain commit
-* `track` — Start tracking given remote branches
-* `untrack` — Stop tracking given remote branches
+* `track` — Start tracking given remote bookmarks
+* `untrack` — Stop tracking given remote bookmarks
 
 
 
@@ -256,7 +256,7 @@ Create a new branch
 
 ###### **Arguments:**
 
-* `<NAMES>` — The branches to create
+* `<NAMES>` — The bookmarks to create
 
 ###### **Options:**
 
@@ -272,9 +272,9 @@ Delete an existing branch and propagate the deletion to remotes on the next push
 
 ###### **Arguments:**
 
-* `<NAMES>` — The branches to delete
+* `<NAMES>` — The bookmarks to delete
 
-   By default, the specified name matches exactly. Use `glob:` prefix to select branches by wildcard pattern. For details, see https://github.com/martinvonz/jj/blob/main/docs/revsets.md#string-patterns.
+   By default, the specified name matches exactly. Use `glob:` prefix to select bookmarks by wildcard pattern. For details, see https://github.com/martinvonz/jj/blob/main/docs/revsets.md#string-patterns.
 
 
 
@@ -288,34 +288,34 @@ A forgotten branch will not impact remotes on future pushes. It will be recreate
 
 ###### **Arguments:**
 
-* `<NAMES>` — The branches to forget
+* `<NAMES>` — The bookmarks to forget
 
-   By default, the specified name matches exactly. Use `glob:` prefix to select branches by wildcard pattern. For details, see https://github.com/martinvonz/jj/blob/main/docs/revsets.md#string-patterns.
+   By default, the specified name matches exactly. Use `glob:` prefix to select bookmarks by wildcard pattern. For details, see https://github.com/martinvonz/jj/blob/main/docs/revsets.md#string-patterns.
 
 
 
 ## `jj branch list`
 
-List branches and their targets
+List bookmarks and their targets
 
 By default, a tracking remote branch will be included only if its target is different from the local target. A non-tracking remote branch won't be listed. For a conflicted branch (both local and remote), old target revisions are preceded by a "-" and new target revisions are preceded by a "+".
 
-For information about branches, see https://github.com/martinvonz/jj/blob/main/docs/branches.md.
+For information about bookmarks, see https://github.com/martinvonz/jj/blob/main/docs/bookmarks.md.
 
 **Usage:** `jj branch list [OPTIONS] [NAMES]...`
 
 ###### **Arguments:**
 
-* `<NAMES>` — Show branches whose local name matches
+* `<NAMES>` — Show bookmarks whose local name matches
 
-   By default, the specified name matches exactly. Use `glob:` prefix to select branches by wildcard pattern. For details, see https://github.com/martinvonz/jj/blob/main/docs/revsets.md#string-patterns.
+   By default, the specified name matches exactly. Use `glob:` prefix to select bookmarks by wildcard pattern. For details, see https://github.com/martinvonz/jj/blob/main/docs/revsets.md#string-patterns.
 
 ###### **Options:**
 
-* `-a`, `--all-remotes` — Show all tracking and non-tracking remote branches including the ones whose targets are synchronized with the local branches
-* `-t`, `--tracked` — Show remote tracked branches only. Omits local Git-tracking branches by default
-* `-c`, `--conflicted` — Show conflicted branches only
-* `-r`, `--revisions <REVISIONS>` — Show branches whose local targets are in the given revisions
+* `-a`, `--all-remotes` — Show all tracking and non-tracking remote bookmarks including the ones whose targets are synchronized with the local bookmarks
+* `-t`, `--tracked` — Show remote tracked bookmarks only. Omits local Git-tracking bookmarks by default
+* `-c`, `--conflicted` — Show conflicted bookmarks only
+* `-r`, `--revisions <REVISIONS>` — Show bookmarks whose local targets are in the given revisions
 
    Note that `-r deleted_branch` will not work since `deleted_branch` wouldn't have a local target.
 * `-T`, `--template <TEMPLATE>` — Render each branch using the given template
@@ -328,31 +328,31 @@ For information about branches, see https://github.com/martinvonz/jj/blob/main/d
 
 ## `jj branch move`
 
-Move existing branches to target revision
+Move existing bookmarks to target revision
 
-If branch names are given, the specified branches will be updated to point to the target revision.
+If branch names are given, the specified bookmarks will be updated to point to the target revision.
 
-If `--from` options are given, branches currently pointing to the specified revisions will be updated. The branches can also be filtered by names.
+If `--from` options are given, bookmarks currently pointing to the specified revisions will be updated. The bookmarks can also be filtered by names.
 
-Example: pull up the nearest branches to the working-copy parent
+Example: pull up the nearest bookmarks to the working-copy parent
 
-$ jj branch move --from 'heads(::@- & branches())' --to @-
+$ jj branch move --from 'heads(::@- & bookmarks())' --to @-
 
 **Usage:** `jj branch move [OPTIONS] <--from <REVISIONS>|NAMES>`
 
 ###### **Arguments:**
 
-* `<NAMES>` — Move branches matching the given name patterns
+* `<NAMES>` — Move bookmarks matching the given name patterns
 
-   By default, the specified name matches exactly. Use `glob:` prefix to select branches by wildcard pattern. For details, see https://github.com/martinvonz/jj/blob/main/docs/revsets.md#string-patterns.
+   By default, the specified name matches exactly. Use `glob:` prefix to select bookmarks by wildcard pattern. For details, see https://github.com/martinvonz/jj/blob/main/docs/revsets.md#string-patterns.
 
 ###### **Options:**
 
-* `--from <REVISIONS>` — Move branches from the given revisions
-* `--to <REVISION>` — Move branches to this revision
+* `--from <REVISIONS>` — Move bookmarks from the given revisions
+* `--to <REVISION>` — Move bookmarks to this revision
 
   Default value: `@`
-* `-B`, `--allow-backwards` — Allow moving branches backwards or sideways
+* `-B`, `--allow-backwards` — Allow moving bookmarks backwards or sideways
 
 
 
@@ -379,7 +379,7 @@ Create or update a branch to point to a certain commit
 
 ###### **Arguments:**
 
-* `<NAMES>` — The branches to update
+* `<NAMES>` — The bookmarks to update
 
 ###### **Options:**
 
@@ -390,7 +390,7 @@ Create or update a branch to point to a certain commit
 
 ## `jj branch track`
 
-Start tracking given remote branches
+Start tracking given remote bookmarks
 
 A tracking remote branch will be imported as a local branch of the same name. Changes to it will propagate to the existing local branch on future pulls.
 
@@ -398,9 +398,9 @@ A tracking remote branch will be imported as a local branch of the same name. Ch
 
 ###### **Arguments:**
 
-* `<BRANCH@REMOTE>` — Remote branches to track
+* `<BRANCH@REMOTE>` — Remote bookmarks to track
 
-   By default, the specified name matches exactly. Use `glob:` prefix to select branches by wildcard pattern. For details, see https://github.com/martinvonz/jj/blob/main/docs/revsets.md#string-patterns.
+   By default, the specified name matches exactly. Use `glob:` prefix to select bookmarks by wildcard pattern. For details, see https://github.com/martinvonz/jj/blob/main/docs/revsets.md#string-patterns.
 
    Examples: branch@remote, glob:main@*, glob:jjfan-*@upstream
 
@@ -408,7 +408,7 @@ A tracking remote branch will be imported as a local branch of the same name. Ch
 
 ## `jj branch untrack`
 
-Stop tracking given remote branches
+Stop tracking given remote bookmarks
 
 A non-tracking remote branch is just a pointer to the last-fetched remote branch. It won't be imported as a local branch on future pulls.
 
@@ -416,9 +416,9 @@ A non-tracking remote branch is just a pointer to the last-fetched remote branch
 
 ###### **Arguments:**
 
-* `<BRANCH@REMOTE>` — Remote branches to untrack
+* `<BRANCH@REMOTE>` — Remote bookmarks to untrack
 
-   By default, the specified name matches exactly. Use `glob:` prefix to select branches by wildcard pattern. For details, see https://github.com/martinvonz/jj/blob/main/docs/revsets.md#string-patterns.
+   By default, the specified name matches exactly. Use `glob:` prefix to select bookmarks by wildcard pattern. For details, see https://github.com/martinvonz/jj/blob/main/docs/revsets.md#string-patterns.
 
    Examples: branch@remote, glob:main@*, glob:jjfan-*@upstream
 
@@ -910,7 +910,7 @@ If a working-copy commit gets abandoned, it will be given a new, empty commit. T
 
 ###### **Options:**
 
-* `-b`, `--branch <BRANCH>` — Fetch only some of the branches
+* `-b`, `--branch <BRANCH>` — Fetch only some of the bookmarks
 
    By default, the specified name matches exactly. Use `glob:` prefix to expand `*` as a glob. The other wildcard characters aren't supported.
 
@@ -963,32 +963,32 @@ Create a new Git backed repo
 
 Push to a Git remote
 
-By default, pushes any branches pointing to `remote_branches(remote=<remote>)..@`. Use `--branch` to push specific branches. Use `--all` to push all branches. Use `--change` to generate branch names based on the change IDs of specific commits.
+By default, pushes any bookmarks pointing to `remote_bookmarks(remote=<remote>)..@`. Use `--branch` to push specific bookmarks. Use `--all` to push all bookmarks. Use `--change` to generate branch names based on the change IDs of specific commits.
 
 Before the command actually moves, creates, or deletes a remote branch, it makes several [safety checks]. If there is a problem, you may need to run `jj git fetch --remote <remote name>` and/or resolve some [branch conflicts].
 
-[safety checks]: https://martinvonz.github.io/jj/latest/branches/#pushing-branches-safety-checks
+[safety checks]: https://martinvonz.github.io/jj/latest/bookmarks/#pushing-bookmarks-safety-checks
 
-[branch conflicts]: https://martinvonz.github.io/jj/latest/branches/#conflicts
+[branch conflicts]: https://martinvonz.github.io/jj/latest/bookmarks/#conflicts
 
 **Usage:** `jj git push [OPTIONS]`
 
 ###### **Options:**
 
 * `--remote <REMOTE>` — The remote to push to (only named remotes are supported)
-* `-b`, `--branch <BRANCH>` — Push only this branch, or branches matching a pattern (can be repeated)
+* `-b`, `--branch <BRANCH>` — Push only this branch, or bookmarks matching a pattern (can be repeated)
 
-   By default, the specified name matches exactly. Use `glob:` prefix to select branches by wildcard pattern. For details, see https://martinvonz.github.io/jj/latest/revsets#string-patterns.
-* `--all` — Push all branches (including deleted branches)
-* `--tracked` — Push all tracked branches (including deleted branches)
+   By default, the specified name matches exactly. Use `glob:` prefix to select bookmarks by wildcard pattern. For details, see https://martinvonz.github.io/jj/latest/revsets#string-patterns.
+* `--all` — Push all bookmarks (including deleted bookmarks)
+* `--tracked` — Push all tracked bookmarks (including deleted bookmarks)
 
-   This usually means that the branch was already pushed to or fetched from the relevant remote. For details, see https://martinvonz.github.io/jj/latest/branches#remotes-and-tracked-branches
-* `--deleted` — Push all deleted branches
+   This usually means that the branch was already pushed to or fetched from the relevant remote. For details, see https://martinvonz.github.io/jj/latest/bookmarks#remotes-and-tracked-bookmarks
+* `--deleted` — Push all deleted bookmarks
 
-   Only tracked branches can be successfully deleted on the remote. A warning will be printed if any untracked branches on the remote correspond to missing local branches.
+   Only tracked bookmarks can be successfully deleted on the remote. A warning will be printed if any untracked bookmarks on the remote correspond to missing local bookmarks.
 * `--allow-empty-description` — Allow pushing commits with empty descriptions
 * `--allow-private` — Allow pushing commits that are private
-* `-r`, `--revisions <REVISIONS>` — Push branches pointing to these commits (can be repeated)
+* `-r`, `--revisions <REVISIONS>` — Push bookmarks pointing to these commits (can be repeated)
 * `-c`, `--change <CHANGE>` — Push this commit by creating a branch based on its change ID (can be repeated)
 * `--dry-run` — Only display what will change on the remote
 
@@ -1006,7 +1006,7 @@ The Git repo will be a bare git repo stored inside the `.jj/` directory.
 
 * `add` — Add a Git remote
 * `list` — List Git remotes
-* `remove` — Remove a Git remote and forget its branches
+* `remove` — Remove a Git remote and forget its bookmarks
 * `rename` — Rename a Git remote
 * `set-url` — Set the URL of a Git remote
 
@@ -1035,7 +1035,7 @@ List Git remotes
 
 ## `jj git remote remove`
 
-Remove a Git remote and forget its branches
+Remove a Git remote and forget its bookmarks
 
 **Usage:** `jj git remote remove <REMOTE>`
 
@@ -1386,9 +1386,9 @@ This restores the repo to the state at the specified operation, effectively undo
 
   Possible values:
   - `repo`:
-    The jj repo state and local branches
+    The jj repo state and local bookmarks
   - `remote-tracking`:
-    The remote-tracking branches. Do not restore these if you'd like to push after the undo
+    The remote-tracking bookmarks. Do not restore these if you'd like to push after the undo
 
 
 
@@ -1452,9 +1452,9 @@ This undoes an individual operation by applying the inverse of the operation.
 
   Possible values:
   - `repo`:
-    The jj repo state and local branches
+    The jj repo state and local bookmarks
   - `remote-tracking`:
-    The remote-tracking branches. Do not restore these if you'd like to push after the undo
+    The remote-tracking bookmarks. Do not restore these if you'd like to push after the undo
 
 
 
@@ -1887,7 +1887,7 @@ This includes:
 
 * The working copy commit and its (first) parent, and a summary of the changes between them
 
-* Conflicted branches (see https://github.com/martinvonz/jj/blob/main/docs/branches.md)
+* Conflicted bookmarks (see https://github.com/martinvonz/jj/blob/main/docs/bookmarks.md)
 
 **Usage:** `jj status [PATHS]...`
 
@@ -2042,9 +2042,9 @@ Undo an operation (shortcut for `jj op undo`)
 
   Possible values:
   - `repo`:
-    The jj repo state and local branches
+    The jj repo state and local bookmarks
   - `remote-tracking`:
-    The remote-tracking branches. Do not restore these if you'd like to push after the undo
+    The remote-tracking bookmarks. Do not restore these if you'd like to push after the undo
 
 
 

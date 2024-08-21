@@ -94,7 +94,7 @@ fn test_git_colocated() {
 }
 
 #[test]
-fn test_git_colocated_unborn_branch() {
+fn test_git_colocated_unborn_bookmark() {
     let test_env = TestEnvironment::default();
     let workspace_root = test_env.env_root().join("repo");
     let git_repo = git2::Repository::init(&workspace_root).unwrap();
@@ -152,7 +152,7 @@ fn test_git_colocated_unborn_branch() {
     "###);
 
     // Stage some change, and create new HEAD. This shouldn't move the default
-    // branch.
+    // bookmark.
     add_file_to_index("file1", "");
     let (stdout, stderr) = test_env.jj_cmd_ok(&workspace_root, &["new"]);
     insta::assert_snapshot!(stdout, @"");
@@ -180,8 +180,8 @@ fn test_git_colocated_unborn_branch() {
     Parent commit: kkmpptxz e3e01407 (no description set)
     "###);
 
-    // Assign the default branch. The branch is no longer "unborn".
-    test_env.jj_cmd_ok(&workspace_root, &["branch", "create", "-r@-", "master"]);
+    // Assign the default bookmark. The bookmark is no longer "unborn".
+    test_env.jj_cmd_ok(&workspace_root, &["bookmark", "create", "-r@-", "master"]);
 
     // Stage some change, and check out root again. This should unset the HEAD.
     // https://github.com/martinvonz/jj/issues/1495
@@ -232,8 +232,8 @@ fn test_git_colocated_unborn_branch() {
 }
 
 #[test]
-fn test_git_colocated_export_branches_on_snapshot() {
-    // Checks that we export branches that were changed only because the working
+fn test_git_colocated_export_bookmarkes_on_snapshot() {
+    // Checks that we export bookmarkes that were changed only because the working
     // copy was snapshotted
 
     let test_env = TestEnvironment::default();
@@ -241,15 +241,15 @@ fn test_git_colocated_export_branches_on_snapshot() {
     let git_repo = git2::Repository::init(&workspace_root).unwrap();
     test_env.jj_cmd_ok(&workspace_root, &["git", "init", "--git-repo", "."]);
 
-    // Create branch pointing to the initial commit
+    // Create bookmark pointing to the initial commit
     std::fs::write(workspace_root.join("file"), "initial").unwrap();
-    test_env.jj_cmd_ok(&workspace_root, &["branch", "create", "foo"]);
+    test_env.jj_cmd_ok(&workspace_root, &["bookmark", "create", "foo"]);
     insta::assert_snapshot!(get_log_output(&test_env, &workspace_root), @r###"
     @  b15ef4cdd277d2c63cce6d67c1916f53a36141f7 foo
     ◆  0000000000000000000000000000000000000000
     "###);
 
-    // The branch gets updated when we modify the working copy, and it should get
+    // The bookmark gets updated when we modify the working copy, and it should get
     // exported to Git without requiring any other changes
     std::fs::write(workspace_root.join("file"), "modified").unwrap();
     insta::assert_snapshot!(get_log_output(&test_env, &workspace_root), @r###"
@@ -275,7 +275,7 @@ fn test_git_colocated_rebase_on_import() {
     std::fs::write(workspace_root.join("file"), "contents").unwrap();
     test_env.jj_cmd_ok(&workspace_root, &["commit", "-m", "add a file"]);
     std::fs::write(workspace_root.join("file"), "modified").unwrap();
-    test_env.jj_cmd_ok(&workspace_root, &["branch", "create", "master"]);
+    test_env.jj_cmd_ok(&workspace_root, &["bookmark", "create", "master"]);
     test_env.jj_cmd_ok(&workspace_root, &["commit", "-m", "modify a file"]);
     // TODO: We shouldn't need this command here to trigger an import of the
     // refs/heads/master we just exported
@@ -284,14 +284,14 @@ fn test_git_colocated_rebase_on_import() {
     // Move `master` backwards, which should result in commit2 getting hidden,
     // and the working-copy commit rebased.
     let commit2_oid = git_repo
-        .find_branch("master", git2::BranchType::Local)
+        .find_bookmark("master", git2::BranchType::Local)
         .unwrap()
         .get()
         .target()
         .unwrap();
     let commit2 = git_repo.find_commit(commit2_oid).unwrap();
     let commit1 = commit2.parents().next().unwrap();
-    git_repo.branch("master", &commit1, true).unwrap();
+    git_repo.bookmark("master", &commit1, true).unwrap();
     let (stdout, stderr) = get_log_output_with_stderr(&test_env, &workspace_root);
     insta::assert_snapshot!(stdout, @r###"
     @  15b1d70c5e33b5d2b18383292b85324d5153ffed
@@ -309,7 +309,7 @@ fn test_git_colocated_rebase_on_import() {
 }
 
 #[test]
-fn test_git_colocated_branches() {
+fn test_git_colocated_bookmarkes() {
     let test_env = TestEnvironment::default();
     let workspace_root = test_env.env_root().join("repo");
     let git_repo = git2::Repository::init(&workspace_root).unwrap();
@@ -324,9 +324,9 @@ fn test_git_colocated_branches() {
     ◆  0000000000000000000000000000000000000000
     "###);
 
-    // Create a branch in jj. It should be exported to Git even though it points to
-    // the working- copy commit.
-    test_env.jj_cmd_ok(&workspace_root, &["branch", "create", "master"]);
+    // Create a bookmark in jj. It should be exported to Git even though it points
+    // to the working- copy commit.
+    test_env.jj_cmd_ok(&workspace_root, &["bookmark", "create", "master"]);
     insta::assert_snapshot!(
         git_repo.find_reference("refs/heads/master").unwrap().target().unwrap().to_string(),
         @"3560559274ab431feea00b7b7e0b9250ecce951f"
@@ -336,7 +336,7 @@ fn test_git_colocated_branches() {
         @"230dd059e1b059aefc0da06a2e5a7dbf22362f22"
     );
 
-    // Update the branch in Git
+    // Update the bookmark in Git
     let target_id = test_env.jj_cmd_success(
         &workspace_root,
         &["log", "--no-graph", "-T=commit_id", "-r=description(foo)"],
@@ -366,59 +366,66 @@ fn test_git_colocated_branches() {
 }
 
 #[test]
-fn test_git_colocated_branch_forget() {
+fn test_git_colocated_bookmark_forget() {
     let test_env = TestEnvironment::default();
     let workspace_root = test_env.env_root().join("repo");
     let _git_repo = git2::Repository::init(&workspace_root).unwrap();
     test_env.jj_cmd_ok(&workspace_root, &["git", "init", "--git-repo", "."]);
     test_env.jj_cmd_ok(&workspace_root, &["new"]);
-    test_env.jj_cmd_ok(&workspace_root, &["branch", "create", "foo"]);
+    test_env.jj_cmd_ok(&workspace_root, &["bookmark", "create", "foo"]);
     insta::assert_snapshot!(get_log_output(&test_env, &workspace_root), @r###"
     @  65b6b74e08973b88d38404430f119c8c79465250 foo
     ○  230dd059e1b059aefc0da06a2e5a7dbf22362f22 HEAD@git
     ◆  0000000000000000000000000000000000000000
     "###);
-    insta::assert_snapshot!(get_branch_output(&test_env, &workspace_root), @r###"
+    insta::assert_snapshot!(get_bookmark_output(&test_env, &workspace_root), @r###"
     foo: rlvkpnrz 65b6b74e (empty) (no description set)
       @git: rlvkpnrz 65b6b74e (empty) (no description set)
     "###);
 
-    let (stdout, stderr) = test_env.jj_cmd_ok(&workspace_root, &["branch", "forget", "foo"]);
+    let (stdout, stderr) = test_env.jj_cmd_ok(&workspace_root, &["bookmark", "forget", "foo"]);
     insta::assert_snapshot!(stdout, @"");
     insta::assert_snapshot!(stderr, @r###"
-    Forgot 1 branches.
+    Forgot 1 bookmarkes.
     "###);
-    // A forgotten branch is deleted in the git repo. For a detailed demo explaining
-    // this, see `test_branch_forget_export` in `test_branch_command.rs`.
-    insta::assert_snapshot!(get_branch_output(&test_env, &workspace_root), @"");
+    // A forgotten bookmark is deleted in the git repo. For a detailed demo
+    // explaining this, see `test_bookmark_forget_export` in
+    // `test_bookmark_command.rs`.
+    insta::assert_snapshot!(get_bookmark_output(&test_env, &workspace_root), @"");
 }
 
 #[test]
-fn test_git_colocated_branch_at_root() {
+fn test_git_colocated_bookmark_at_root() {
     let test_env = TestEnvironment::default();
     test_env.jj_cmd_ok(test_env.env_root(), &["git", "init", "--colocate", "repo"]);
     let repo_path = test_env.env_root().join("repo");
 
     let (_stdout, stderr) =
-        test_env.jj_cmd_ok(&repo_path, &["branch", "create", "foo", "-r=root()"]);
+        test_env.jj_cmd_ok(&repo_path, &["bookmark", "create", "foo", "-r=root()"]);
     insta::assert_snapshot!(stderr, @r###"
-    Created 1 branches pointing to zzzzzzzz 00000000 foo | (empty) (no description set)
-    Warning: Failed to export some branches:
+    Created 1 bookmarkes pointing to zzzzzzzz 00000000 foo | (empty) (no description set)
+    Warning: Failed to export some bookmarkes:
       foo: Ref cannot point to the root commit in Git
     "###);
 
-    let (_stdout, stderr) = test_env.jj_cmd_ok(&repo_path, &["branch", "move", "foo"]);
+    let (_stdout, stderr) = test_env.jj_cmd_ok(&repo_path, &["bookmark", "move", "foo"]);
     insta::assert_snapshot!(stderr, @r###"
-    Moved 1 branches to qpvuntsm 230dd059 foo | (empty) (no description set)
+    Moved 1 bookmarkes to qpvuntsm 230dd059 foo | (empty) (no description set)
     "###);
 
     let (_stdout, stderr) = test_env.jj_cmd_ok(
         &repo_path,
-        &["branch", "move", "foo", "--allow-backwards", "--to=root()"],
+        &[
+            "bookmark",
+            "move",
+            "foo",
+            "--allow-backwards",
+            "--to=root()",
+        ],
     );
     insta::assert_snapshot!(stderr, @r###"
-    Moved 1 branches to zzzzzzzz 00000000 foo* | (empty) (no description set)
-    Warning: Failed to export some branches:
+    Moved 1 bookmarkes to zzzzzzzz 00000000 foo* | (empty) (no description set)
+    Warning: Failed to export some bookmarkes:
       foo: Ref cannot point to the root commit in Git
     "###);
 }
@@ -429,17 +436,17 @@ fn test_git_colocated_conflicting_git_refs() {
     let workspace_root = test_env.env_root().join("repo");
     git2::Repository::init(&workspace_root).unwrap();
     test_env.jj_cmd_ok(&workspace_root, &["git", "init", "--git-repo", "."]);
-    test_env.jj_cmd_ok(&workspace_root, &["branch", "create", "main"]);
-    let (stdout, stderr) = test_env.jj_cmd_ok(&workspace_root, &["branch", "create", "main/sub"]);
+    test_env.jj_cmd_ok(&workspace_root, &["bookmark", "create", "main"]);
+    let (stdout, stderr) = test_env.jj_cmd_ok(&workspace_root, &["bookmark", "create", "main/sub"]);
     insta::assert_snapshot!(stdout, @"");
     insta::with_settings!({filters => vec![("Failed to set: .*", "Failed to set: ...")]}, {
         insta::assert_snapshot!(stderr, @r###"
-        Created 1 branches pointing to qpvuntsm 230dd059 main main/sub | (empty) (no description set)
-        Warning: Failed to export some branches:
+        Created 1 bookmarkes pointing to qpvuntsm 230dd059 main main/sub | (empty) (no description set)
+        Warning: Failed to export some bookmarkes:
           main/sub: Failed to set: ...
-        Hint: Git doesn't allow a branch name that looks like a parent directory of
-        another (e.g. `foo` and `foo/bar`). Try to rename the branches that failed to
-        export or their "parent" branches.
+        Hint: Git doesn't allow a bookmark name that looks like a parent directory of
+        another (e.g. `foo` and `foo/bar`). Try to rename the bookmarkes that failed to
+        export or their "parent" bookmarkes.
         "###);
     });
 }
@@ -507,18 +514,18 @@ fn test_git_colocated_checkout_non_empty_working_copy() {
 }
 
 #[test]
-fn test_git_colocated_fetch_deleted_or_moved_branch() {
+fn test_git_colocated_fetch_deleted_or_moved_bookmark() {
     let test_env = TestEnvironment::default();
-    test_env.add_config("git.auto-local-branch = true");
+    test_env.add_config("git.auto-local-bookmark = true");
     let origin_path = test_env.env_root().join("origin");
     git2::Repository::init(&origin_path).unwrap();
     test_env.jj_cmd_ok(&origin_path, &["git", "init", "--git-repo=."]);
     test_env.jj_cmd_ok(&origin_path, &["describe", "-m=A"]);
-    test_env.jj_cmd_ok(&origin_path, &["branch", "create", "A"]);
+    test_env.jj_cmd_ok(&origin_path, &["bookmark", "create", "A"]);
     test_env.jj_cmd_ok(&origin_path, &["new", "-m=B_to_delete"]);
-    test_env.jj_cmd_ok(&origin_path, &["branch", "create", "B_to_delete"]);
+    test_env.jj_cmd_ok(&origin_path, &["bookmark", "create", "B_to_delete"]);
     test_env.jj_cmd_ok(&origin_path, &["new", "-m=original C", "@-"]);
-    test_env.jj_cmd_ok(&origin_path, &["branch", "create", "C_to_move"]);
+    test_env.jj_cmd_ok(&origin_path, &["bookmark", "create", "C_to_move"]);
 
     let clone_path = test_env.env_root().join("clone");
     git2::Repository::clone(origin_path.to_str().unwrap(), &clone_path).unwrap();
@@ -534,17 +541,17 @@ fn test_git_colocated_fetch_deleted_or_moved_branch() {
     ◆  0000000000000000000000000000000000000000
     "###);
 
-    test_env.jj_cmd_ok(&origin_path, &["branch", "delete", "B_to_delete"]);
-    // Move branch C sideways
+    test_env.jj_cmd_ok(&origin_path, &["bookmark", "delete", "B_to_delete"]);
+    // Move bookmark C sideways
     test_env.jj_cmd_ok(&origin_path, &["describe", "C_to_move", "-m", "moved C"]);
     let (stdout, stderr) = test_env.jj_cmd_ok(&clone_path, &["git", "fetch"]);
     insta::assert_snapshot!(stdout, @"");
     insta::assert_snapshot!(stderr, @r###"
-    branch: B_to_delete@origin [deleted] untracked
-    branch: C_to_move@origin   [updated] tracked
+    bookmark: B_to_delete@origin [deleted] untracked
+    bookmark: C_to_move@origin   [updated] tracked
     Abandoned 2 commits that are no longer reachable.
     "###);
-    // "original C" and "B_to_delete" are abandoned, as the corresponding branches
+    // "original C" and "B_to_delete" are abandoned, as the corresponding bookmarkes
     // were deleted or moved on the remote (#864)
     insta::assert_snapshot!(get_log_output(&test_env, &clone_path), @r###"
     ○  4f3d13296f978cbc351c46a43b4619c91b888475 C_to_move moved C
@@ -565,9 +572,9 @@ fn test_git_colocated_rebase_dirty_working_copy() {
     std::fs::write(repo_path.join("file"), "base").unwrap();
     test_env.jj_cmd_ok(&repo_path, &["new"]);
     std::fs::write(repo_path.join("file"), "old").unwrap();
-    test_env.jj_cmd_ok(&repo_path, &["branch", "create", "feature"]);
+    test_env.jj_cmd_ok(&repo_path, &["bookmark", "create", "feature"]);
 
-    // Make the working-copy dirty, delete the checked out branch.
+    // Make the working-copy dirty, delete the checked out bookmark.
     std::fs::write(repo_path.join("file"), "new").unwrap();
     git_repo
         .find_reference("refs/heads/feature")
@@ -576,19 +583,19 @@ fn test_git_colocated_rebase_dirty_working_copy() {
         .unwrap();
 
     // Because the working copy is dirty, the new working-copy commit will be
-    // diverged. Therefore, the feature branch has change-delete conflict.
+    // diverged. Therefore, the feature bookmark has change-delete conflict.
     let (stdout, stderr) = test_env.jj_cmd_ok(&repo_path, &["status"]);
     insta::assert_snapshot!(stdout, @r###"
     Working copy changes:
     M file
     Working copy : rlvkpnrz 6bad94b1 feature?? | (no description set)
     Parent commit: qpvuntsm 3230d522 (no description set)
-    These branches have conflicts:
+    These bookmarkes have conflicts:
       feature
-      Use `jj branch list` to see details. Use `jj branch set <name> -r <rev>` to resolve.
+      Use `jj bookmark list` to see details. Use `jj bookmark set <name> -r <rev>` to resolve.
     "###);
     insta::assert_snapshot!(stderr, @r###"
-    Warning: Failed to export some branches:
+    Warning: Failed to export some bookmarkes:
       feature: Modified ref had been deleted in Git
     Done importing changes from the underlying Git repo.
     "###);
@@ -616,11 +623,11 @@ fn test_git_colocated_external_checkout() {
 
     test_env.jj_cmd_ok(&repo_path, &["git", "init", "--git-repo=."]);
     test_env.jj_cmd_ok(&repo_path, &["ci", "-m=A"]);
-    test_env.jj_cmd_ok(&repo_path, &["branch", "create", "-r@-", "master"]);
+    test_env.jj_cmd_ok(&repo_path, &["bookmark", "create", "-r@-", "master"]);
     test_env.jj_cmd_ok(&repo_path, &["new", "-m=B", "root()"]);
     test_env.jj_cmd_ok(&repo_path, &["new"]);
 
-    // Checked out anonymous branch
+    // Checked out anonymous bookmark
     insta::assert_snapshot!(get_log_output(&test_env, &repo_path), @r###"
     @  f8a23336e41840ed1757ef323402a770427dc89a
     ○  eccedddfa5152d99fc8ddd1081b375387a8a382a HEAD@git B
@@ -629,10 +636,10 @@ fn test_git_colocated_external_checkout() {
     ◆  0000000000000000000000000000000000000000
     "###);
 
-    // Check out another branch by external command
+    // Check out another bookmark by external command
     git_check_out_ref("refs/heads/master");
 
-    // The old working-copy commit gets abandoned, but the whole branch should not
+    // The old working-copy commit gets abandoned, but the whole bookmark should not
     // be abandoned. (#1042)
     let (stdout, stderr) = get_log_output_with_stderr(&test_env, &repo_path);
     insta::assert_snapshot!(stdout, @r###"
@@ -658,7 +665,7 @@ fn test_git_colocated_external_checkout() {
     ◆  0000000000000000000000000000000000000000
     "###);
 
-    // Check out another branch by external command
+    // Check out another bookmark by external command
     git_check_out_ref("refs/heads/master");
 
     // The old working-copy commit shouldn't be abandoned. (#3747)
@@ -769,7 +776,7 @@ fn get_log_output_divergence(test_env: &TestEnvironment, repo_path: &Path) -> St
       change_id.short(),
       commit_id.short(),
       description.first_line(),
-      branches,
+      bookmarkes,
       git_head,
       if(divergent, "!divergence!"),
     )
@@ -778,7 +785,7 @@ fn get_log_output_divergence(test_env: &TestEnvironment, repo_path: &Path) -> St
 }
 
 fn get_log_output(test_env: &TestEnvironment, workspace_root: &Path) -> String {
-    let template = r#"separate(" ", commit_id, branches, git_head, description)"#;
+    let template = r#"separate(" ", commit_id, bookmarkes, git_head, description)"#;
     test_env.jj_cmd_success(workspace_root, &["log", "-T", template, "-r=all()"])
 }
 
@@ -786,7 +793,7 @@ fn get_log_output_with_stderr(
     test_env: &TestEnvironment,
     workspace_root: &Path,
 ) -> (String, String) {
-    let template = r#"separate(" ", commit_id, branches, git_head, description)"#;
+    let template = r#"separate(" ", commit_id, bookmarkes, git_head, description)"#;
     test_env.jj_cmd_ok(workspace_root, &["log", "-T", template, "-r=all()"])
 }
 
@@ -862,7 +869,7 @@ fn test_git_colocated_unreachable_commits() {
     "###);
 }
 
-fn get_branch_output(test_env: &TestEnvironment, repo_path: &Path) -> String {
-    // --quiet to suppress deleted branches hint
-    test_env.jj_cmd_success(repo_path, &["branch", "list", "--all-remotes", "--quiet"])
+fn get_bookmark_output(test_env: &TestEnvironment, repo_path: &Path) -> String {
+    // --quiet to suppress deleted bookmarkes hint
+    test_env.jj_cmd_success(repo_path, &["bookmark", "list", "--all-remotes", "--quiet"])
 }
