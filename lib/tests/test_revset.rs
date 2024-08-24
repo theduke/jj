@@ -3439,7 +3439,7 @@ fn test_evaluate_expression_conflict() {
 
     // Only commit4 has a conflict
     assert_eq!(
-        resolve_commit_ids(mut_repo, "conflict()"),
+        resolve_commit_ids(mut_repo, "conflicts()"),
         vec![commit4.id().clone()]
     );
 }

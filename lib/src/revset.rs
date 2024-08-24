@@ -777,6 +777,10 @@ static BUILTIN_FUNCTION_MAP: Lazy<HashMap<&'static str, RevsetFunction>> = Lazy:
         function.expect_no_arguments()?;
         Ok(RevsetExpression::filter(RevsetFilterPredicate::HasConflict))
     });
+    map.insert("conflicts", |function, _context| {
+        function.expect_no_arguments()?;
+        Ok(RevsetExpression::filter(RevsetFilterPredicate::HasConflict))
+    });
     map.insert("present", |function, context| {
         let [arg] = function.expect_exact_arguments()?;
         let expression = lower_expression(arg, context)?;
