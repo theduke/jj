@@ -12,12 +12,16 @@ working-copy contents when they have changed. Most `jj` commands you run will
 commit the working-copy changes if they have changed. The resulting revision
 will replace the previous working-copy revision.
 
-Also unlike most other VCSs, added files are implicitly tracked. That means that
-if you add a new file to the working copy, it will be automatically committed
-once you run e.g. `jj st`. Similarly, if you remove a file from the working
-copy, it will implicitly be untracked. To untrack a file while keeping it in
-the working copy, first make sure it's [ignored](#ignored-files) and then run
-`jj file untrack <path>`.
+Also unlike most other VCSs, added files are implicitly tracked by default. That
+means that if you add a new file to the working copy, it will be automatically
+committed once you run e.g. `jj st`. Similarly, if you remove a file from the
+working copy, it will implicitly be untracked. The `snapshot.auto-track` config
+option controls which paths get automatically tracked when they're added. See
+the [fileset documentation](filesets.md) for the syntax.
+
+You can use `jj file untrack` to untrack a file while keeping it in the working
+copy. However, first [ignore](#ignored-files) them or remove them from the
+`snapshot.auto-track` patterns; otherwise they will be immediately tracked again.
 
 
 ## Conflicts

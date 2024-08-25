@@ -63,8 +63,9 @@ easy way to see the evolution of the commit's contents.
 
 ### Can I prevent Jujutsu from recording my unfinished work? I'm not ready to commit it.
 
-Jujutsu automatically records new files in the current working-copy commit and
-doesn't provide a way to prevent that.
+You can set `snapshot.auto-track` to only start tracking new files matching the
+configured pattern (e.g. `"none()"`). Changes to already tracked files will
+still be snapshotted by every command.
 
 However, you can easily record intermediate drafts of your work. If you think
 you might want to go back to the current state of the working-copy commit,

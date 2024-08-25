@@ -39,6 +39,7 @@ This document contains the help content for the `jj` command-line program.
 * [`jj file chmod`↴](#jj-file-chmod)
 * [`jj file list`↴](#jj-file-list)
 * [`jj file show`↴](#jj-file-show)
+* [`jj file track`↴](#jj-file-track)
 * [`jj file untrack`↴](#jj-file-untrack)
 * [`jj fix`↴](#jj-fix)
 * [`jj git`↴](#jj-git)
@@ -703,6 +704,7 @@ File operations
 * `chmod` — Sets or removes the executable bit for paths in the repo
 * `list` — List files in a revision
 * `show` — Print contents of files in a revision
+* `track` — Start tracking specified paths in the working copy
 * `untrack` — Stop tracking specified paths in the working copy
 
 
@@ -770,6 +772,24 @@ If the given path is a directory, files in the directory will be visited recursi
 * `-r`, `--revision <REVISION>` — The revision to get the file contents from
 
   Default value: `@`
+
+
+
+## `jj file track`
+
+Start tracking specified paths in the working copy
+
+Without arguments, all paths that are not ignored will be tracked.
+
+By default, Jujutsu starts tracking all new files automatically. This command is not useful then. You can configure which paths to automatically track by setting e.g. `snapshot.auto-track = 'none()'`. You will then need to run this command to start tracking new files.
+
+There is no way to list untracked files yet.
+
+**Usage:** `jj file track <PATHS>...`
+
+###### **Arguments:**
+
+* `<PATHS>` — Paths to track
 
 
 

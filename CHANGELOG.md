@@ -20,6 +20,12 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### New features
 
+* The new config option `snapshot.auto-track` lets you automatically track only
+  the specified paths (all paths by default). Use the new `jj file track`
+  command to manually tracks path that were not automatically tracked. There is
+  no way to list untracked files yet.
+  [#323](https://github.com/martinvonz/jj/issues/323)
+
 * Add new boolean config knob, `ui.movement.edit` for controlling the behaviour
   of `prev/next`. The flag turns `edit` mode `on` and `off` permanently when set
   respectively to `true` or `false`.

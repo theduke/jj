@@ -856,6 +856,18 @@ impl WorkspaceCommandHelper {
         Ok(FilesetExpression::union_all(expressions))
     }
 
+    pub fn auto_tracking_matcher(&self) -> Result<Box<dyn Matcher>, CommandError> {
+        let pattern = self.settings.config().get_string("snapshot.auto-track")?;
+        let expression = fileset::parse(
+            &pattern,
+            &RepoPathUiConverter::Fs {
+                cwd: "".into(),
+                base: "".into(),
+            },
+        )?;
+        Ok(expression.to_matcher())
+    }
+
     pub(crate) fn path_converter(&self) -> &RepoPathUiConverter {
         &self.path_converter
     }
@@ -1289,6 +1301,7 @@ impl WorkspaceCommandHelper {
             return Ok(());
         };
         let base_ignores = self.base_ignores()?;
+        let auto_tracking_matcher = self.auto_tracking_matcher()?;
 
         // Compare working-copy tree and operation with repo's, and reload as needed.
         let mut locked_ws = self.workspace.start_working_copy_mutation()?;
@@ -1341,6 +1354,7 @@ See https://github.com/martinvonz/jj/blob/main/docs/working-copy.md#stale-workin
             base_ignores,
             fsmonitor_settings: self.settings.fsmonitor_settings()?,
             progress: progress.as_ref().map(|x| x as _),
+            start_tracking_matcher: &auto_tracking_matcher,
             max_new_file_size: self.settings.max_new_file_size()?,
         })?;
         drop(progress);
